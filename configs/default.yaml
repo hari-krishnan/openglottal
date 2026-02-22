@@ -1,0 +1,42 @@
+# OpenGlottal default configuration
+# Override any value via CLI flags or by passing a custom config path.
+
+detector:
+  conf: 0.25          # YOLO confidence threshold
+  max_shift_px: 30    # max centre drift per frame (pixels)
+  padding: 8          # pixels added around locked crop
+
+vft:
+  alpha: 0.98                 # EMA weight for motion map
+  beta: 0.70                  # EMA weight for intensity threshold
+  roi_threshold_ratio: 0.07   # fraction of peak motion used as ROI threshold
+  gaussian_ksize: 13          # blur kernel size (must be odd)
+  glottal_percentile: 5       # intensity percentile to seed threshold
+  max_glottal_components: 2   # max connected components in output mask
+  init_frames: 10             # seed frames for VFT initialisation
+
+guided_vft:
+  alpha: 0.98
+  beta: 0.70
+  glottal_percentile: 5
+  gaussian_ksize: 13
+  max_glottal_components: 2
+  init_frames: 3              # fewer needed — ROI comes from YOLO, not motion map
+
+unet:
+  features: [32, 64, 128, 256]
+  threshold: 0.5
+
+training:
+  yolo:
+    epochs: 100
+    imgsz: 256
+    batch: 16
+  unet:
+    epochs: 50
+    batch: 16
+    lr: 1.0e-3
+
+dataset:
+  img_size: 256
+  dilate: 10          # bbox dilation when converting masks to YOLO labels

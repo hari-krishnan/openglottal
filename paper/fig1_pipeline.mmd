@@ -1,0 +1,67 @@
+%% Figure 1: Overview of the five inference pipelines.
+%% Spelling: use "YOLO detector" and "Gate" (not detectir / Gane). Export at high resolution (e.g. 300 DPI) for publication.
+%% Solid arrows = data flow; gate = output zero when YOLO does not detect (or after ≤3 consecutive misses).
+%% Input and output are outside any subgraph. Use with: mermaid-cli (mmdc) or Mermaid Live Editor.
+
+flowchart LR
+
+    IN("Input frame<br/>(256×256 grayscale)")
+    M1["Segmentation mask"]
+
+    subgraph unet_only["U-Net only"]
+        U1["Full-frame U-Net"]
+        IN --> U1 --> M1
+    end
+
+    subgraph yolo_unet["YOLO+UNet"]
+        Y2["YOLO detector"]
+        G2{"Gate"}
+        U2["Full-frame U-Net"]
+        Z2["Mask outside bbox → 0"]
+        IN --> Y2 --> G2
+        G2 -->|"No detect (or &gt;3 misses)"| ZERO2["Output = 0"]
+        G2 -->|"Detect"| U2
+        U2 --> Z2 --> M1
+    end
+
+    subgraph yolo_crop["YOLO-Crop+UNet"]
+        Y3["YOLO detector"]
+        G3{"Gate"}
+        C3["Crop + resize 256×256"]
+        U3["Crop-mode U-Net"]
+        P3["Resize back, paste"]
+        IN --> Y3 --> G3
+        G3 -->|"No detect (or &gt;3 misses)"| ZERO3["Output = 0"]
+        G3 -->|"Detect"| C3
+        C3 --> U3 --> P3 --> M1
+    end
+
+    subgraph yolo_motion["YOLO+Motion"]
+        Y4["YOLO detector"]
+        G4{"Gate"}
+        V4["YOLOGuidedVFT<br/>(temporal tracker)"]
+        IN --> Y4 --> G4
+        G4 -->|"No detect"| ZERO4["Output = 0"]
+        G4 -->|"Detect"| V4
+        V4 --> M1
+    end
+
+    subgraph yolo_otsu["YOLO+OTSU (baseline)"]
+        Y5["YOLO detector"]
+        G5{"Gate"}
+        O5["Otsu threshold in bbox"]
+        IN --> Y5 --> G5
+        G5 -->|"No detect"| ZERO5["Output = 0"]
+        G5 -->|"Detect"| O5
+        O5 --> M1
+    end
+
+    style G2 fill:#fff3cd
+    style G3 fill:#fff3cd
+    style G4 fill:#fff3cd
+    style G5 fill:#fff3cd
+    style ZERO2 fill:#f8d7da
+    style ZERO3 fill:#f8d7da
+    style ZERO4 fill:#f8d7da
+    style ZERO5 fill:#f8d7da
+    style IN fill:#e7f3ff

@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "openglottal"
+version = "0.1.0"
+description = "Automated glottal area segmentation from high-speed videoendoscopy"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+keywords = ["glottis", "segmentation", "vocal-folds", "laryngoscopy", "medical-imaging"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+dependencies = [
+    "torch>=2.0",
+    "torchvision>=0.15",
+    "ultralytics>=8.0",
+    "opencv-python>=4.8",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "tqdm>=4.65",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "ruff", "mypy"]
+docs = ["mkdocs", "mkdocs-material"]
+
+[project.scripts]
+openglottal = "openglottal.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["openglottal*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"

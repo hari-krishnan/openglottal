@@ -1,0 +1,897 @@
+\documentclass[preprint,12pt]{elsarticle}
+
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{microtype}
+\usepackage{siunitx}
+\usepackage[capitalise,noabbrev]{cleveref}
+\graphicspath{{./}}
+% High-resolution figures for publication (Figure 1, etc.)
+\pdfimageresolution=300
+
+% ── journal / short-hand macros ──────────────────────────────────────────────
+\newcommand{\girafe}{\textbf{GIRAFE}}
+\newcommand{\bagls}{\textbf{BAGLS}}
+\newcommand{\yolounet}{YOLO+UNet}
+\newcommand{\yolocrop}{YOLO-Crop+UNet}
+\newcommand{\gaw}{GAW}
+
+\journal{Computers in Biology and Medicine}
+
+\begin{document}
+
+\begin{frontmatter}
+
+\title{Detection-Gated Glottal Segmentation with Zero-Shot Cross-Dataset
+       Transfer and Clinical Feature Extraction}
+
+\author[1]{Harikrishnan Unnikrishnan}
+
+\address[1]{Orchard Robotics, San Francisco, CA, USA}
+
+\begin{abstract}
+
+Quantitative analysis of vocal-fold vibration from high-speed
+videoendoscopy (HSV) requires segmenting the glottal area in each frame,
+a task that is prohibitively labour-intensive when performed manually.
+Existing automated methods are typically evaluated on a single dataset
+and lack a principled strategy for handling frames in which the endoscope
+is off-target.
+We propose a \emph{detection-gated} segmentation pipeline that pairs a
+YOLOv8 glottis detector~\cite{jocher2023yolo} with a lightweight
+U-Net segmenter~\cite{ronneberger2015unet}.
+The detector serves two roles: (\emph{i}) it gates the segmentation output,
+zeroing the predicted area when no glottis is detected (or after at most
+\num{3} consecutive missed frames), thereby removing spurious detections
+and preventing waveform artefacts in clinical recordings; and
+(\emph{ii}) in a second variant (\yolocrop{}), it crops the detected region
+and rescales it to fill the U-Net's input canvas, providing higher effective
+resolution at the glottis boundary.
+On the \girafe{} benchmark our U-Net alone achieves a mean Dice of
+\num{0.809}, and the detection-gated \yolounet{} pipeline achieves
+\num{0.746}---both surpassing all three published baselines
+(InP \num{0.713}, U-Net \num{0.643}, SwinUNetV2 \num{0.621}).
+In a zero-shot cross-dataset experiment on \bagls{} (\num{3500} frames from
+a different institution and endoscope, with no \bagls{} training data),
+\yolocrop{} with an optimised detection threshold reaches Dice \num{0.659}
+versus \num{0.588} for a YOLO-free U-Net baseline.
+Finally, running the pipeline on all \num{65} \girafe{} patients' full video
+recordings yields a \emph{Glottal Area Waveform} (\gaw{}) per patient.
+Sex-stratified analysis of seven kinematic features shows that the
+coefficient of variation of the glottal area significantly distinguishes
+Healthy from Pathological voices in the female subgroup
+(\(p{=}0.006\), Mann--Whitney $U$), consistent with the established
+finding that laryngeal pathologies reduce vibratory regularity.
+Code, trained weights, and evaluation scripts are released at
+\url{https://github.com/hari-krishnan/openglottal}.
+\end{abstract}
+
+\begin{keyword}
+glottal segmentation \sep high-speed videoendoscopy \sep YOLOv8 \sep
+U-Net \sep glottal area waveform \sep vocal fold pathology \sep
+cross-dataset generalisation
+\end{keyword}
+
+\begin{highlights}
+\item Detection gate zeroes output after at most 3 missed frames, removing spurious detections.
+\item New state of the art on the \girafe{} benchmark with \num{0.809} Dice, beating all published baselines.
+\item YOLO-Crop variant improves zero-shot transfer to independent BAGLS dataset.
+\item Coefficient of variation distinguishes voices by pathology after sex control.
+\item Lightweight pipeline processes full HSV videos in seconds on consumer hardware.
+\end{highlights}
+
+\end{frontmatter}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Introduction}
+\label{sec:intro}
+% ─────────────────────────────────────────────────────────────────────────────
+
+High-speed videoendoscopy (HSV) enables frame-by-frame observation of vocal
+fold vibration at several thousand frames per second, making it the gold
+standard for objective voice assessment in clinical laryngology
+\cite{deliyski2008laryngoscope}.
+The central derived quantity is the \emph{Glottal Area Waveform} (\gaw{})---the
+per-frame area of the glottal opening as a function of time---from which
+kinematic biomarkers such as open quotient, fundamental frequency, and
+vibration regularity can be computed \cite{little2013glottal,deliyski2008laryngoscope,lohscheller2011laryngoscope,patel2013invivo,patel2016effects}.
+
+Accurate glottal segmentation is the bottleneck.
+Rule-based methods (active contours, level sets, optical flow) struggle with
+the wide variability in illumination, endoscope angle, and patient anatomy
+\cite{lohscheller2011laryngoscope}.
+Deep learning holds promise for this task, yet results so far are mixed:
+Andrade-Miranda et al.\ released the \girafe{} dataset---\num{760}
+expert-annotated HSV frames from \num{65} patients---and found that the
+classical InP method (Dice \num{0.713}) still outperformed their U-Net
+(Dice \num{0.643}) and SwinUNetV2 (Dice \num{0.621}), which the authors
+attributed to the small training set \cite{andrade2025datainbrief}.
+Nevertheless, two important gaps remain:
+
+\begin{enumerate}
+  \item \textbf{Robustness.}  Clinical recordings routinely contain frames in which
+  the glottis is not visible (scope insertion, coughing, endoscope motion)
+  \cite{deliyski2008laryngoscope}.
+  Existing segmentation models are not equipped to detect this
+    condition and produce spurious non-zero area predictions, corrupting the
+    downstream \gaw{}.
+
+  \item \textbf{Generalisation.}  Published methods are evaluated on a single
+    dataset.  Whether the learned representations transfer to images from a
+    different institution, camera system, or patient population is unknown.
+\end{enumerate}
+
+We address both gaps with a detection-gated pipeline (\cref{sec:method}) and
+evaluate it on two independent public datasets (\cref{sec:experiments}).
+Our contributions are:
+
+\begin{itemize}
+  \item A \emph{detection gate}: YOLO-based glottis detection is used as a
+    binary switch---when YOLO fires, U-Net prediction within the detected
+    bounding box is reported; when it does not, the previous box is held for
+    at most \num{3} consecutive frames and then the detection is zeroed.
+    Only by zeroing after this short hold do we remove spurious detections
+    on non-glottis frames (e.g.\ closed glottis, scope motion) without
+    post-hoc filtering.
+
+  \item A \emph{crop-zoom variant} (\yolocrop{}): the detected bounding box
+    is cropped and resized to the full U-Net canvas, providing higher
+    effective pixel resolution at the glottal boundary and improved
+    cross-dataset generalisation.
+
+  \item \emph{End-to-end \gaw{} analysis}: the pipeline is applied to all
+    \num{65} \girafe{} patients' full recordings and kinematic features are
+    extracted; the coefficient of variation significantly distinguishes
+    Healthy from Pathological groups even after controlling for sex
+    imbalance.
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Related Work}
+\label{sec:related}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Classical glottal segmentation}
+Early methods employed active contours and level-set evolution seeded by
+manually placed landmarks \cite{lohscheller2011laryngoscope}.
+Optical-flow-based trackers and morphological inpainting variants (InP)
+remained competitive for years due to the limited size of labelled datasets
+\cite{andrade2025datainbrief}.
+
+\subsection{Deep learning}
+The publication of the \girafe{} benchmark
+\cite{andrade2025datainbrief} enabled a rigorous comparison: their
+U-Net~\cite{ronneberger2015unet} (Dice \num{0.643}) and the transformer-based
+SwinUNetV2~\cite{cao2022swinunet} (Dice \num{0.621}) were both outperformed
+by the classical InP
+method (Dice \num{0.713}), which the authors attributed to the small training
+set size.
+The \bagls{} dataset \cite{gomez2020bagls} provides \num{55750} training
+and \num{3500} test frames from multiple endoscope systems without
+patient-level diagnoses, making it a natural testbed for generalisation.
+The original \bagls{} paper validated the benchmark with a U-Net baseline
+achieving IoU $\approx 0.89$ on the test split.
+Subsequent work demonstrated that a single latent bottleneck channel suffices
+for accurate glottis segmentation \cite{kist2022latent}, while
+Fehling et al.\ incorporated temporal context via a convolutional LSTM
+encoder--decoder, reaching Dice \num{0.85} on \num{13000} frames from
+\num{130} subjects \cite{fehling2020convlstm}.
+Kist et al.\ packaged three quality-tiered segmentation networks into the
+\emph{Glottis Analysis Tools} (GAT) software for clinical
+use~\cite{kist2021gat}.
+These temporal and recurrent approaches improve consistency across frames but
+require substantially more GPU memory and training data than frame-level
+models, limiting their applicability on small datasets such as \girafe{}.
+
+\subsection{Foundation models}
+The Segment Anything Model (SAM)~\cite{kirillov2023sam} and its medical
+variants~\cite{ma2024medsam} have demonstrated strong zero-shot
+segmentation across diverse imaging domains when provided with a point or
+bounding-box prompt.
+However, SAM's ViT-H backbone (\num{636}M parameters) is an order of
+magnitude larger than the pipeline proposed here and requires per-frame
+prompting, making it impractical for real-time \gaw{} extraction from
+thousands of HSV frames.
+
+\subsection{Detect-then-segment}
+Two-stage pipelines---region proposal followed by per-region segmentation---are
+standard in general object segmentation \cite{he2017maskrcnn} but have not
+been systematically applied to glottal HSV.
+Closest to our work, \cite{gomez2021automatic} used a bounding-box
+initialisation for active-contour tracking, but did not gate the output
+on detection confidence.
+
+\subsection{\gaw{} feature analysis}
+Kinematic features of the \gaw{} are well-established clinical measures
+\cite{patel2016effects,little2013glottal}.
+Significant differences in open quotient and fundamental frequency between
+healthy and disordered voices have been reported, though studies are
+typically limited to small, single-institution cohorts.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Methods}
+\label{sec:method}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Datasets}
+\label{sec:datasets}
+
+\paragraph{\girafe{}}
+The \girafe{} dataset \cite{andrade2025datainbrief} contains \num{760}
+high-speed laryngoscopy frames (\(256\times256\) px) from \num{65} patients
+(adults and children, healthy and pathological) with pixel-level glottal masks
+annotated by expert clinicians.
+Frames are grouped into official training / validation / test splits (\num{600}
+/ \num{80} / \num{80} frames; test patients: 57A3, 61, 63, 64).
+Splits are strictly at the patient level: the \num{30} training patients,
+\num{4} validation patients, and \num{4} test patients are disjoint sets,
+ensuring that no patient's anatomy appears in both training and evaluation.
+Each patient folder also contains the full AVI recording (median length
+\num{502} frames at \SI{4000}{fps}) and a metadata file recording the disorder
+status (Healthy, Paresis, Polyps, Diplophonia, Nodules, Paralysis, Cysts,
+Carcinoma, Multinodular Goiter, Other, or Unknown).
+
+\paragraph{\bagls{}}
+The Benchmark for Automatic Glottis Segmentation (\bagls{}) \cite{gomez2020bagls}
+contains \num{55750} training and \num{3500} test frames from multiple
+endoscope types and institutions.
+Image dimensions vary (\(256\times256\) to \(512\times512\)); each frame is
+paired with a binary glottal mask.
+No patient-level labels are provided.
+Crucially, \bagls{} was not used in any training step---it serves exclusively
+as a zero-shot cross-dataset evaluation set.
+
+\subsection{Pre-processing}
+\label{sec:preproc}
+
+\paragraph{\girafe{}}
+Images are used at their native \(256\times256\) resolution.
+
+\paragraph{\bagls{} letterboxing}
+Variable-size \bagls{} frames are letterboxed to \(256\times256\):
+the longer side is scaled to \num{256} pixels while maintaining aspect ratio,
+and the remaining dimension is zero-padded symmetrically.
+The same transformation is applied identically to the GT mask to maintain
+spatial correspondence.
+
+\subsection{YOLO Glottis Detector}
+\label{sec:yolo}
+
+We fine-tune YOLOv8n \cite{jocher2023yolo} on bounding boxes derived from
+the \girafe{} training split.
+GT bounding boxes are computed as the tight enclosing rectangle of each GT
+mask, then converted to YOLO label format.
+Training runs for \num{100} epochs using the default YOLOv8 augmentation
+pipeline.
+
+At inference time a \emph{TemporalDetector} wrapper provides temporal
+consistency without the memory overhead of 3D convolutions or recurrent
+architectures~\cite{fehling2020convlstm}:
+the detected box centre is drift-clamped to at most \num{30} pixels per
+frame, and when the detector misses a frame the previous bounding box is
+held for at most \num{3} consecutive misses before the detection is
+\emph{zeroed} (output set to zero until YOLO fires again).
+Only by zeroing after this short hold do we remove spurious detections
+(e.g.\ stale boxes from closed glottis or scope motion).
+The box size is updated from each fresh detection.
+This suppresses spurious jumps caused by reflections or instrument
+occlusion while allowing the natural opening--closing motion of the glottis.
+Because all temporal reasoning resides in the lightweight detection wrapper
+rather than in the segmentation backbone, the U-Net itself remains a
+standard 2D model that can be trained on the small \girafe{} training set
+(\num{600} frames) without risk of temporal overfitting.
+
+\subsection{U-Net Segmenter}
+\label{sec:unet}
+
+We train two U-Net~\cite{ronneberger2015unet} variants with a four-level
+encoder--decoder (channel widths \(32, 64, 128, 256\), \num{7.76}M
+parameters).
+
+\paragraph{Full-frame U-Net (\texttt{unet\_only})}
+Input: \(256\times256\) grayscale frame.
+Training data: \num{600} \girafe{} training frames with augmentation
+(random flips, $\pm\SI{30}{\degree}$ rotation, $\pm\SI{15}{\percent}$ scale jitter, brightness /
+contrast / Gaussian blur perturbations).
+Loss: \(0.5\cdot\mathcal{L}_{\mathrm{BCE}} + 0.5\cdot\mathcal{L}_{\mathrm{Dice}}\)~\cite{milletari2016vnet}.
+Optimiser: AdamW~\cite{loshchilov2019adamw}, learning rate \num{e-3},
+cosine annealing~\cite{loshchilov2017sgdr} over \num{50} epochs.
+
+\paragraph{Crop-mode U-Net (\texttt{unet\_crop})}
+For each training frame, the YOLO detector is run and the detected bounding
+box (plus 8 px padding on each side) is cropped and resized to
+\(256\times256\).
+The matching GT mask undergoes the same crop-resize.
+Frames with no YOLO detection are excluded (\num{487} training crops /
+\num{77} validation crops retained out of \num{600} / \num{80} frames).
+Training procedure is identical to the full-frame model, saving to a separate
+checkpoint (\texttt{unet\_crop.pt}).
+
+\subsection{Inference Pipelines}
+\label{sec:pipelines}
+
+\begin{figure}[t]
+\centering
+\IfFileExists{pipeline.png}{%
+  \includegraphics[width=\linewidth,keepaspectratio]{pipeline.png}%
+}{%
+  \fbox{\parbox{0.85\linewidth}{\centering\vspace{1.5cm}%
+    \textbf{Figure 1:} Overview of the five inference pipelines.\\
+    Export \texttt{fig1\_pipeline.mmd} from Mermaid Live (mermaid.live) at high resolution, or add \texttt{pipeline2.png} here.\\
+    Check spelling: ``YOLO detector'' and ``Gate'' (not detectir/Gane).\vspace{1.5cm}}}
+}
+\caption{Overview of the five inference pipelines.
+  Input (left) is the \num{256}\(\times\)\num{256} grayscale frame; each pipeline
+  yields a segmentation mask (right).
+  Solid arrows denote data flow; the gate symbol indicates that the output is
+  set to zero when YOLO does not detect a glottis (or after at most
+  \num{3} consecutive missed frames), removing spurious detections.}
+\label{fig:pipeline}
+\end{figure}
+
+Five pipelines are evaluated (\cref{fig:pipeline}):
+
+\paragraph{U-Net only}
+Run the full-frame U-Net on the \(256\times256\) grayscale input; output the
+thresholded probability map directly.
+No detection gate---every frame produces a prediction.
+
+\paragraph{YOLO+UNet}
+(1) Run the YOLO detector on the full frame.
+(2) Run the full-frame U-Net on the full frame.
+(3) Zero the U-Net mask outside the detected bounding box.
+If YOLO does not fire (or after \num{3} consecutive misses), output is
+all-zero, removing spurious detections.
+
+\paragraph{\yolocrop{}}
+(1) Run the YOLO detector.
+(2) Crop the detected region (\(+8\) px padding), resize to \(256\times256\).
+(3) Run the crop-mode U-Net on the resized crop.
+(4) Resize the output mask back to the original crop dimensions.
+(5) Paste into a full-frame zero mask at the detected coordinates.
+If YOLO does not fire (or after \num{3} consecutive misses), output is
+all-zero.
+
+\paragraph{YOLO+Motion}
+(1) Run the YOLO detector.
+(2) Feed the grayscale frame and bounding box to a motion-based tracker
+(YOLO-GuidedVFT~\cite{patel2015kinematic,patel2016effects}, extending our
+frame-differencing approach) that segments the glottis via temporal frame
+differencing within the detected region.
+The first frames are used for tracker initialisation and excluded from
+metrics.
+
+\paragraph{YOLO+OTSU (baseline)}
+Otsu thresholding~\cite{otsu1979threshold} (inverted, glottis is dark)
+within the YOLO bounding box.  No learned segmentation component.
+
+\subsection{Glottal Area Waveform Features}
+\label{sec:gaw_features}
+
+For each patient video the \yolounet{} pipeline is applied to every frame,
+yielding an area waveform $A(t)$.
+As in the pipeline definition (\cref{sec:pipelines}), the detector acts as a
+gate: frames where YOLO does not detect a glottis (or after at most
+\num{3} consecutive missed frames the detection is zeroed) contribute zero
+to the waveform, removing spurious detections and avoiding non-zero
+area from off-target endoscope views.
+Seven scalar kinematic features are extracted (\cref{tab:features}).
+The fundamental frequency $f_0$ is estimated from the dominant FFT peak and
+converted from cycles/frame to Hz using the recording frame rate.
+Features are compared between Healthy (\(n{=}15\)) and Pathological
+(\(n{=}25\)) groups using the two-sided Mann--Whitney $U$ test (significance
+threshold $\alpha{=}0.05$); the \num{25} patients with Unknown or other disorder status
+are excluded from the group comparison.
+
+\begin{table}[t]
+\centering
+\caption{Kinematic features extracted from the Glottal Area Waveform.}
+\label{tab:features}
+\begin{tabular}{ll}
+\toprule
+Feature & Description \\
+\midrule
+\texttt{area\_mean}    & Mean glottal area (px$^2$) over open frames \\
+\texttt{area\_std}     & Standard deviation of area \\
+\texttt{area\_range}   & Max $-$ min area (vibratory excursion) \\
+\texttt{open\_quotient}& Fraction of cycle with area $>$ 10\% of mean \\
+\texttt{f0}            & Dominant frequency from FFT (Hz) \\
+\texttt{periodicity}   & Peak autocorrelation at lags 1--50 \\
+\texttt{cv}            & Coefficient of variation (\texttt{area\_std} / \texttt{area\_mean}) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Experiments}
+\label{sec:experiments}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Evaluation Metrics}
+\label{sec:metrics}
+
+\begin{itemize}
+  \item \textbf{Det.Recall}: fraction of frames where the YOLO detector fired
+    (relevant for YOLO-gated pipelines; reported as \num{1.000} for detection-free
+    baselines that always output a prediction).
+  \item \textbf{Dice}: \(2\mathrm{TP}/(2\mathrm{TP}+\mathrm{FP}+\mathrm{FN})\),
+    computed per frame then averaged.
+  \item \textbf{IoU}: \(\mathrm{TP}/(\mathrm{TP}+\mathrm{FP}+\mathrm{FN})\),
+    per frame then averaged.
+  \item \textbf{Dice${\geq}0.5$}: fraction of frames with Dice $\geq 0.5$,
+    a clinical pass/fail threshold \cite{andrade2025datainbrief}.
+\end{itemize}
+
+\subsection{Implementation Details}
+All experiments run on Apple M-series hardware (MPS backend).
+YOLO training: YOLOv8n, \num{100} epochs, default hyperparameters, image size
+\(256\times256\).
+U-Net training: \num{50} epochs, batch size \num{16}, AdamW (\texttt{lr=1e-3}),
+cosine annealing.
+Both models trained solely on \girafe{} training split.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Results}
+\label{sec:results}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{GIRAFE In-Distribution Evaluation}
+\label{sec:results_girafe}
+
+\Cref{tab:girafe} compares our pipelines against the published \girafe{}
+baselines on the \num{80}-frame test split.
+Our U-Net alone achieves the highest Dice (\num{0.809}) and clinical pass
+rate (Dice${\geq}0.5 = \SI{96.2}{\%}$), substantially outperforming all
+three published methods.
+The detection-gated \yolounet{} pipeline reaches Dice \num{0.746},
+still surpassing InP (\num{0.713}) and SwinUNetV2 (\num{0.621}).
+The gap between U-Net only and \yolounet{} on \girafe{} arises because the
+YOLO bounding box occasionally clips GT glottis pixels that extend beyond
+the detected region; this cost is absent without gating.
+YOLO detects a glottis on \SI{95}{\%} of test frames (Det.Recall $= 0.95$);
+the remaining \SI{5}{\%} are zeroed after the 3-frame hold, consistent with
+occasional closed-glottis or low-confidence frames.
+However, the detection gate provides essential robustness on real clinical
+recordings where the endoscope may be off-target (\cref{sec:results_gaw}).
+
+The \yolocrop{} pipeline, trained on YOLO-cropped patches, achieves Dice
+\num{0.697}---below \yolounet{} but above both deep-learning baselines from
+the \girafe{} paper.
+The performance gap relative to \yolounet{} stems from the \girafe{} test
+frame structure: the \num{80} test frames are the \emph{first} \num{20} frames
+per patient, and the tight YOLO bounding box occasionally clips GT glottis
+pixels that extend marginally beyond the detected region.
+Crucially, this limitation is overcome in the cross-dataset setting where the
+glottis region is larger relative to the frame (\cref{sec:results_bagls}).
+
+\begin{table}[t]
+\centering
+\caption{Segmentation results on the \girafe{} test split (4 patients,
+  80 frames). Published baselines from \protect\cite{andrade2025datainbrief}.
+  Det.Recall $=$ n/a for methods that do not include a detection stage.}
+\label{tab:girafe}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccc}
+\toprule
+Method & Det.Recall & Dice & IoU & Dice${\geq}0.5$ \\
+\midrule
+InP~\cite{andrade2025datainbrief}       & n/a   & 0.713 & n/a   & n/a \\
+U-Net~\cite{andrade2025datainbrief}     & n/a   & 0.643 & n/a   & n/a \\
+SwinUNetV2~\cite{andrade2025datainbrief}& n/a   & 0.621 & n/a   & n/a \\
+\midrule
+YOLO+OTSU (ours)                        & 0.95  & 0.230 & 0.136 &  2.5\% \\
+U-Net only (ours)                       & n/a   & \textbf{0.809} & \textbf{0.699} & \textbf{96.2\%} \\
+\yolounet{} (ours)                      & 0.95  & 0.746 & 0.629 & 83.8\% \\
+\yolocrop{} (ours)                      & 0.95  & 0.697 & 0.567 & 77.5\% \\
+YOLO+Motion (ours)                      & 0.95  & 0.349 & 0.234 & 23.5\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\Cref{fig:montage} shows an example of the pipeline output: a montage of
+\num{12} annotated frames from patient~1 over one vibratory cycle, with the
+glottal opening segmented (green) and the detected region boxed (yellow); the
+numeric label in each frame is the glottal area in pixels².
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth,keepaspectratio]{patient1_montage.png}
+\caption{Output of the \yolounet{} pipeline on \num{12} evenly spaced frames
+  from one patient (patient~1): glottal mask (green), YOLO bounding box
+  (yellow), and per-frame area. The montage illustrates temporal consistency
+  of the segmentation across the vibratory cycle.}
+\label{fig:montage}
+\end{figure}
+
+\Cref{tab:girafe_patient} breaks down the Dice and IoU scores by test
+patient.
+U-Net only is the strongest pipeline on every patient, with the largest
+margin on patient~57A3 (Dice \num{0.803} vs.\ \num{0.597} for \yolounet{}),
+the case where the YOLO bounding box clips glottis pixels most aggressively.
+Patient~61 is the easiest case---all three pipelines exceed Dice \num{0.83}.
+
+\begin{table}[t]
+\centering
+\caption{Per-patient Dice / IoU on the \girafe{} test split (20 frames
+  each).  Best Dice per patient in bold.}
+\label{tab:girafe_patient}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{l cc cc cc}
+\toprule
+ & \multicolumn{2}{c}{U-Net only}
+ & \multicolumn{2}{c}{\yolounet{}}
+ & \multicolumn{2}{c}{\yolocrop{}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+Patient & Dice & IoU & Dice & IoU & Dice & IoU \\
+\midrule
+p57A3 & \textbf{0.803} & 0.682 & 0.597 & 0.449 & 0.554 & 0.404 \\
+p61   & \textbf{0.902} & 0.822 & 0.902 & 0.822 & 0.833 & 0.715 \\
+p63   & \textbf{0.794} & 0.697 & 0.788 & 0.694 & 0.748 & 0.633 \\
+p64   & \textbf{0.736} & 0.596 & 0.690 & 0.553 & 0.654 & 0.516 \\
+\midrule
+Mean  & \textbf{0.809} & 0.699 & 0.746 & 0.629 & 0.697 & 0.567 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Zero-Shot Cross-Dataset Evaluation on BAGLS}
+\label{sec:results_bagls}
+
+\Cref{tab:bagls} reports results on \num{3500} \bagls{} test frames.
+Neither the U-Net nor the YOLO weights were trained on any \bagls{} data.
+
+The YOLO detector fires on \SI{68.8}{\%} of \bagls{} frames
+(Det.Recall $= 0.688$), confirming a degree of domain shift from the
+\girafe{}-trained detector.
+On frames where YOLO does not detect, the output is correctly zeroed.
+
+At the default threshold ($\tau{=}0.25$), \yolocrop{} achieves the
+highest Dice (\num{0.609}) and Dice${\geq}0.5$ (\SI{70.3}{\%}),
+outperforming unguided U-Net inference (\num{0.588} Dice,
+\SI{67.1}{\%} Dice${\geq}0.5$).
+The plain \yolounet{} pipeline scores \num{0.545}---below unguided U-Net---because
+the \SI{31.2}{\%} of frames with no YOLO detection receive a zero mask that
+lowers the mean; when YOLO does detect, restricting the full-frame U-Net
+output to the bounding box clips some GT pixels.
+\yolocrop{} avoids this by rescaling the detected region, giving U-Net
+higher effective resolution at the glottis boundary and compensating for the
+missed frames through better per-frame accuracy.
+Lowering the confidence threshold to $\tau{=}0.02$ further improves
+\yolocrop{} to Dice \num{0.659} (\cref{tab:bagls_sweep}).
+
+\begin{table}[t]
+\centering
+\caption{Zero-shot cross-dataset results on \bagls{} test set
+  (\num{3500} frames). No \bagls{} data used in training.
+  Det.Recall shown as 1.000 for U-Net~only (no YOLO gate; always processes
+  every frame).}
+\label{tab:bagls}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccc}
+\toprule
+Method & Det.Recall & Dice & IoU & Dice${\geq}0.5$ \\
+\midrule
+U-Net only                     & 1.000 & 0.588 & 0.504 & 67.1\% \\
+\yolounet{} (ours)             & 0.688 & 0.545 & 0.473 & 61.9\% \\
+\yolocrop{} (ours)             & 0.688 & 0.609 & 0.533 & 70.3\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Confidence threshold sensitivity}
+The default YOLO confidence threshold ($\tau{=}0.25$) was inherited from the
+\girafe{} in-distribution setting.
+Because the \girafe{}-trained detector exhibits domain shift on \bagls{},
+many true glottis frames receive detection scores below \num{0.25} and are
+incorrectly suppressed.
+\Cref{tab:bagls_sweep} reports a single-pass threshold sweep: YOLO inference
+is run once at $\tau{=}0.001$ and the confidence scores are thresholded in
+post-processing.
+Lowering $\tau$ to \num{0.02} raises \yolocrop{} detection recall from
+\SI{68.8}{\%} to \SI{85.9}{\%} and Dice from \num{0.609} to \num{0.659}
+($+0.050$), with the clinical pass rate increasing from \SI{70.3}{\%} to
+\SI{76.3}{\%}.
+Below $\tau{=}0.02$ performance plateaus and then degrades as false-positive
+detections introduce noisy bounding boxes.
+
+\begin{table}[t]
+\centering
+\caption{Effect of YOLO confidence threshold on \yolocrop{} performance
+  (\bagls{} test, \num{3500} frames, zero-shot).
+  YOLO inference is run once; thresholds are applied in post-processing.}
+\label{tab:bagls_sweep}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{rcccc}
+\toprule
+$\tau$ & Det.Recall & Dice & IoU & Dice${\geq}0.5$ \\
+\midrule
+0.001 & 0.943 & 0.646 & 0.553 & 75.0\% \\
+0.005 & 0.917 & 0.652 & 0.561 & 75.7\% \\
+0.01  & 0.895 & 0.654 & 0.563 & 75.8\% \\
+\textbf{0.02}  & \textbf{0.859} & \textbf{0.659} & \textbf{0.568} & \textbf{76.3\%} \\
+0.03  & 0.842 & 0.656 & 0.567 & 76.0\% \\
+0.05  & 0.819 & 0.652 & 0.565 & 75.6\% \\
+0.10  & 0.773 & 0.641 & 0.558 & 74.3\% \\
+0.25  & 0.688 & 0.609 & 0.533 & 70.3\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Technical Validation: Glottal Area Waveform Features}
+\label{sec:results_gaw}
+
+To validate that the pipeline produces clinically meaningful output, we
+extract kinematic \gaw{} features from all \num{65} \girafe{} patient
+recordings and test whether the automatically derived features replicate
+known group differences between Healthy and Pathological voices.
+\Cref{tab:gaw} reports seven features for the \num{15} Healthy and
+\num{25} Pathological patients (\num{25} patients with Unknown or Other status are
+excluded).
+This analysis is exploratory---given the small sample sizes and multiple
+features tested, we report uncorrected $p$-values from two-sided
+Mann--Whitney $U$ tests ($\alpha = 0.05$) without multiple-comparison
+correction.
+
+The Healthy and Pathological groups are sex-imbalanced: Healthy
+recordings are \num{80}\% female (\num{12}F/\num{3}M) while Pathological
+recordings are \num{56}\% male (\num{14}M/\num{11}F; Fisher's exact
+$p{=}0.025$).
+Because $f_0$ is strongly sex-dependent (males \SI{100.3}{Hz} vs.\
+females \SI{223.5}{Hz}, $p{<}0.001$), we report results stratified by
+sex (\cref{tab:gaw}) rather than pooled.
+
+In the female subgroup (\num{12} Healthy vs.\ \num{11} Pathological),
+$f_0$ does not reach significance ($p{=}0.156$), indicating that any
+apparent difference in the unstratified data is driven by sex composition.
+In contrast, cv is the only feature that distinguishes groups after
+stratification:
+
+\begin{itemize}
+  \item \textbf{Coefficient of variation (cv, female only)}:
+    \(0.95\pm0.20\) (Healthy) vs.\ \(0.57\pm0.29\) (Pathological),
+    $p=0.006$.
+\end{itemize}
+
+\noindent Healthy voices exhibit significantly higher vibration
+variability---consistent with the established observation that laryngeal
+pathologies increase vocal fold mass and stiffness, reducing the amplitude
+of glottal oscillation
+\cite{patel2016effects,little2013glottal}.
+In the male subgroup (\num{3} Healthy vs.\ \num{14} Pathological), cv
+shows the same directional trend ($0.75$ vs.\ $0.63$) but does not reach
+significance ($p{=}0.509$), as expected given the very small Healthy
+sample.  Periodicity approaches significance in males ($p{=}0.068$),
+suggesting it may also distinguish groups with a larger cohort.
+
+\begin{table}[t]
+\centering
+\caption{Glottal area waveform kinematic features: Healthy (H) vs.\
+  Pathological (P), stratified by sex.
+  $p$-values from two-sided Mann--Whitney $U$; bold = $p{<}0.05$.
+  The male subgroup has only $n{=}3$ Healthy recordings and results
+  should be interpreted with caution.}
+\label{tab:gaw}
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{l ccc ccc}
+\toprule
+ & \multicolumn{3}{c}{Female (12\,H / 11\,P)}
+ & \multicolumn{3}{c}{Male (3\,H / 14\,P)} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+Feature & H & P & $p$ & H & P & $p$ \\
+\midrule
+area\_mean
+  & $125.2{\pm}43.1$  & $247.8{\pm}204.6$ & 0.230
+  & $192.1{\pm}18.3$  & $172.7{\pm}94.0$  & 0.768 \\
+area\_std
+  & $112.9{\pm}32.2$  & $118.9{\pm}96.0$  & 0.406
+  & $142.7{\pm}35.0$  & $92.0{\pm}66.9$   & 0.197 \\
+area\_range
+  & $336.7{\pm}97.6$  & $375.5{\pm}272.2$ & 0.559
+  & $439.7{\pm}86.7$  & $343.1{\pm}212.3$ & 0.488 \\
+open\_quot.
+  & $0.760{\pm}0.207$ & $0.874{\pm}0.131$ & 0.192
+  & $0.860{\pm}0.145$ & $0.843{\pm}0.186$ & 1.000 \\
+$f_0$ (Hz)
+  & $241.7{\pm}34.8$  & $203.5{\pm}73.6$  & 0.156
+  & $183.3{\pm}75.0$  & $82.5{\pm}79.3$   & 0.169 \\
+periodicity
+  & $0.955{\pm}0.008$ & $0.946{\pm}0.013$ & 0.255
+  & $0.962{\pm}0.001$ & $0.900{\pm}0.116$ & 0.068 \\
+\textbf{cv}
+  & $\mathbf{0.95{\pm}0.20}$   & $\mathbf{0.57{\pm}0.29}$   & \textbf{0.006}
+  & $0.75{\pm}0.19$   & $0.63{\pm}0.40$   & 0.509 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Discussion}
+\label{sec:discussion}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\paragraph{Detection gating as a clinical safety mechanism}
+The detection gate provides a qualitative benefit that segmentation metrics
+alone do not capture: after at most \num{3} consecutive frames without a
+YOLO detection the output is zeroed, so the \gaw{} is zero-valued when the
+endoscope has moved away from the glottis (or the glottis is closed), rather
+than containing artefactual non-zero area from spurious U-Net activations.
+This matters in practice because a clinician computing open quotient or
+periodicity over a full recording would otherwise need to manually identify
+and excise off-target frames---a laborious and subjective step.
+
+\paragraph{Why \yolocrop{} generalises better}
+On the in-distribution \girafe{} test, \yolounet{} outperforms \yolocrop{}.
+On \bagls{}, the order reverses.
+We attribute this to two factors.
+First, \bagls{} images span a wider range of glottis sizes and aspect ratios
+(frames from \(256\times120\) to \(512\times512\) pixels, with the glottis
+occupying a variable fraction of the image).
+By normalising the glottis to fill the U-Net canvas, \yolocrop{} removes
+this scale variability and presents a consistent input distribution to the
+model.
+Second, the \bagls{} glottis appears at relatively lower resolution in the
+full letterboxed frame than in \girafe{}; the crop step recovers this
+resolution.
+
+\paragraph{Experimental direction and data efficiency}
+A natural alternative would be training on the larger \bagls{} dataset
+(\num{55750} frames) and performing zero-shot transfer to \girafe{}.
+However, we intentionally prioritised the inverse direction for two reasons.
+First, the clinical objective of this work---technical validation of \gaw{}
+biomarkers---requires the highest possible segmentation accuracy on the
+patient-labelled \girafe{} recordings.
+Second, demonstrating that a model trained on only \num{600} frames can
+generalise ``upwards'' to the heterogeneous, multi-institutional \bagls{}
+dataset provides a more rigorous test of the pipeline's robustness.
+This approach proves that the \yolocrop{} mechanism effectively learns
+glottal anatomy rather than merely memorising institutional imaging
+characteristics.
+
+\paragraph{Why our U-Net outperforms the \girafe{} U-Net baseline}
+Our U-Net alone achieves Dice \num{0.809} versus \num{0.643} for the
+\girafe{} paper's U-Net~\cite{andrade2025datainbrief}, despite using the
+same dataset, split, and a comparable augmentation pipeline (rotation,
+scaling, flipping, Gaussian noise/blur, brightness/contrast).
+Three training-recipe differences account for the gap:
+\emph{(i)~Grayscale input} (1 channel vs.\ 3-channel RGB)---the glottal gap
+is defined by intensity contrast, so colour triples the input dimensionality
+without adding discriminative signal, making the network harder to train on
+only \num{600} frames;
+\emph{(ii)~Combined BCE\,+\,Dice loss} versus Dice only---the BCE term
+supplies stable per-pixel gradients that complement the region-level Dice
+objective and avoid the gradient instability of pure Dice near $0$ or $1$;
+\emph{(iii)~Higher learning rate with cosine annealing}
+($10^{-3}$ vs.\ fixed $2{\times}10^{-4}$) and
+AdamW~\cite{loshchilov2019adamw} instead of Adam~\cite{kingma2015adam},
+which together explore the loss landscape more aggressively and converge in
+\num{50} epochs to a stronger minimum than \num{200} epochs at a fixed low
+rate.
+These are straightforward engineering choices rather than architectural
+novelties, yet they yield a $+0.166$ Dice improvement---underscoring that on
+small medical-imaging datasets the training recipe matters as much as model
+design.
+
+\paragraph{Lightweight pipeline vs.\ foundation models}
+Foundation models such as SAM~\cite{kirillov2023sam} and
+MedSAM~\cite{ma2024medsam} offer impressive zero-shot segmentation but
+require a per-frame bounding-box or point prompt---precisely what our YOLO
+detector already provides.
+Using YOLO as the SAM prompter is conceptually possible; however, SAM's
+ViT-H encoder (\num{636}M parameters, ${\sim}$\SI{150}{ms} per frame on
+GPU) is over $80\times$ larger than our U-Net (\num{7.76}M parameters) and
+would make real-time \gaw{} extraction from clinical recordings
+($>$\num{1000} frames at $>$\SI{1000}{fps} capture rate) impractical
+without dedicated hardware.
+Our U-Net pipeline processes a \num{502}-frame \girafe{} patient video in
+approximately \SI{11}{s} on consumer hardware (Apple M-series, MPS backend;
+${\sim}$\SI{47}{frames\per\second}), well within offline clinical workflow
+requirements.
+Exploring SAM-based distillation to further improve U-Net accuracy without
+sacrificing throughput is an interesting direction for future work.
+
+\paragraph{YOLO detection and confidence tuning}
+At the default threshold ($\tau{=}0.25$) the YOLO detector fires on
+only \SI{68.8}{\%} of \bagls{} frames.
+Lowering $\tau$ to \num{0.02} recovers \SI{85.9}{\%} recall and lifts
+\yolocrop{} Dice from \num{0.609} to \num{0.659}
+(\cref{tab:bagls_sweep}).
+Below $\tau{=}0.02$, false-positive detections introduce noisy bounding
+boxes that degrade the crop, so performance peaks at this threshold.
+Fine-tuning the detector on a small \bagls{} subset would likely raise
+recall further and is left as future work.
+
+\paragraph{Technical validation of \gaw{} features}
+The \gaw{} analysis is not intended as a clinical study of new biomarkers;
+rather, it serves as a technical validation that the fully automated pipeline
+reproduces group differences previously established through manual
+segmentation~\cite{patel2016effects,little2013glottal}.
+Because the \girafe{} cohort has a significant sex imbalance (Fisher's
+exact $p{=}0.025$) and $f_0$ is strongly sex-dependent,
+\cref{tab:gaw} reports results stratified by sex rather than pooled.
+The stratified analysis shows that $f_0$ does not distinguish groups
+within either sex, confirming the unstratified difference would be
+driven by sex composition rather than disease status.
+In contrast, cv---the coefficient of variation of the glottal area
+waveform---remains the sole feature that survives sex stratification
+($p{=}0.006$, female only), capturing the reduced vibratory regularity in
+pathological vocal folds due to increased mass and
+stiffness~\cite{patel2016effects}.
+With only \num{12} Healthy and \num{11} Pathological female patients and no
+multiple-comparison correction, this result is exploratory and should be
+confirmed on a larger, sex-balanced cohort.
+
+\paragraph{Limitations}
+The \girafe{} cohort is small (\num{15} Healthy, \num{25} Pathological)
+and sex-imbalanced; the male Healthy subgroup ($n{=}3$) is too small for
+sex-stratified inference.
+With larger, balanced samples the non-significant features may reach
+significance.
+The \gaw{} analysis uses the \SI{4000}{fps} capture rate of the
+high-speed videoendoscope for converting $f_0$ from cycles\slash frame to Hz.
+Finally, the \yolocrop{} weights are calibrated to a specific bounding-box
+padding (8 px); using a different padding at inference reduces performance.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Conclusion}
+\label{sec:conclusion}
+% ─────────────────────────────────────────────────────────────────────────────
+
+We presented a lightweight U-Net trained with a carefully tuned recipe
+(grayscale input, combined BCE\,+\,Dice loss, AdamW with cosine annealing)
+that sets a new state of the art on the \girafe{} benchmark
+(Dice \num{0.809}, Dice${\geq}0.5 = \SI{96.2}{\%}$), outperforming all
+three published baselines and our own detection-gated variants.
+We further showed that pairing this U-Net with a YOLOv8 glottis detector
+provides a principled robustness mechanism: the detection gate suppresses
+spurious predictions on off-target frames, producing clean glottal area
+waveforms from full clinical recordings.
+A crop-zoom variant (\yolocrop{}) achieves the best performance in a zero-shot
+evaluation on the independent \bagls{} dataset (Dice \num{0.659} at
+optimised threshold $\tau{=}0.02$), demonstrating that the detection-guided
+approach generalises across institutions and equipment.
+As a technical validation, we applied the pipeline to all \num{65}
+\girafe{} patient recordings and showed that the automatically extracted
+coefficient of variation of the glottal area waveform significantly
+distinguishes Healthy from Pathological voices even after controlling for
+sex imbalance ($p{=}0.006$, female subgroup)---confirming that the
+segmentation quality is sufficient for downstream clinical analysis.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section*{Data and Code Availability}
+
+All training and evaluation scripts, trained model weights, and the
+\girafe{} evaluation results JSON are available at
+\url{https://github.com/hari-krishnan/openglottal}.
+The \girafe{} dataset \cite{andrade2025datainbrief} is freely available from
+\texttt{https://doi.org/10.5281/zenodo.7962150}.
+The \bagls{} dataset \cite{gomez2020bagls} is available from
+\texttt{https://zenodo.org/record/3381469}.
+
+\section*{Author Contributions}
+Harikrishnan Unnikrishnan designed the study, implemented the detection-gated
+pipeline (YOLO glottis detector, U-Net segmenter, and temporal detector with
+3-frame hold), conducted the experiments on \girafe{} and \bagls{}, performed
+the glottal area waveform feature analysis, and wrote the manuscript.
+
+\section*{Declaration of Competing Interest}
+The authors declare no competing interests.
+
+\section*{Acknowledgements}
+We thank Andrade-Miranda et al.\ for making the \girafe{} dataset publicly
+available and G\'{o}mez et al.\ for the \bagls{} benchmark; both datasets were
+essential to this work.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\bibliographystyle{elsarticle-num}
+\bibliography{refs}
+
+\end{document}

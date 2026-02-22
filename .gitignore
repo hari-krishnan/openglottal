@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+*.env
+
+# Data & weights
+*.pt
+*.pth
+*.onnx
+*.avi
+*.mp4
+data/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# YOLO runs
+runs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# LaTeX build artifacts (regenerate with latexmk)
+*.aux
+*.log
+*.out
+*.fls
+*.fdb_latexmk
+*.blg
+
+# Generated evaluation/output (reproducible via scripts)
+results/
+eval_results*.json
