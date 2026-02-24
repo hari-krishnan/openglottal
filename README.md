@@ -25,17 +25,22 @@ All pipelines produce a per-frame **glottal area waveform** from which kinematic
 
 ## Installation
 
-```bash
-pip install openglottal
-```
-
-Or from source:
+Install from source (clone the repo first):
 
 ```bash
 git clone https://github.com/hari-krishnan/openglottal.git
 cd openglottal
 pip install -e ".[dev]"
 ```
+
+Or, from a local clone:
+
+```bash
+cd /path/to/openglottal
+pip install -e ".[dev]"
+```
+
+*(A `pip install openglottal` option will work once the package is published to PyPI.)*
 
 **Requirements:** Python ≥ 3.9, PyTorch ≥ 2.0, Ultralytics ≥ 8.0, OpenCV ≥ 4.8
 
