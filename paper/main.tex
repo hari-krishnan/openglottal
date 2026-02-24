@@ -98,12 +98,12 @@ standard for objective voice assessment in clinical laryngology
 The central derived quantity is the \emph{Glottal Area Waveform} (\gaw{})---the
 per-frame area of the glottal opening as a function of time---from which
 kinematic biomarkers such as open quotient, fundamental frequency, and
-vibration regularity can be computed \cite{little2013glottal,deliyski2008laryngoscope,lohscheller2011laryngoscope,patel2013invivo,patel2016effects}.
+vibration regularity can be computed \cite{little2007glottal,deliyski2008laryngoscope,lohscheller2008laryngoscope,patel2013invivo,patel2016effects}.
 
 Accurate glottal segmentation is the bottleneck.
 Rule-based methods (active contours, level sets, optical flow) struggle with
 the wide variability in illumination, endoscope angle, and patient anatomy
-\cite{lohscheller2011laryngoscope}.
+\cite{lohscheller2008laryngoscope}.
 Deep learning holds promise for this task, yet results so far are mixed:
 Andrade-Miranda et al.\ released the \girafe{} dataset---\num{760}
 expert-annotated HSV frames from \num{65} patients---and found that the
@@ -157,7 +157,7 @@ Our contributions are:
 
 \subsection{Classical glottal segmentation}
 Early methods employed active contours and level-set evolution seeded by
-manually placed landmarks \cite{lohscheller2011laryngoscope}.
+manually placed landmarks \cite{lohscheller2008laryngoscope}.
 Optical-flow-based trackers and morphological inpainting variants (InP)
 remained competitive for years due to the limited size of labelled datasets
 \cite{andrade2025datainbrief}.
@@ -201,13 +201,13 @@ thousands of HSV frames.
 Two-stage pipelines---region proposal followed by per-region segmentation---are
 standard in general object segmentation \cite{he2017maskrcnn} but have not
 been systematically applied to glottal HSV.
-Closest to our work, \cite{gomez2021automatic} used a bounding-box
+Closest to our work, \cite{andrade2015glottal} used a bounding-box
 initialisation for active-contour tracking, but did not gate the output
 on detection confidence.
 
 \subsection{\gaw{} feature analysis}
 Kinematic features of the \gaw{} are well-established clinical measures
-\cite{patel2016effects,little2013glottal}.
+\cite{patel2016effects,little2007glottal}.
 Significant differences in open quotient and fundamental frequency between
 healthy and disordered voices have been reported, though studies are
 typically limited to small, single-institution cohorts.
@@ -664,7 +664,7 @@ stratification:
 variability---consistent with the established observation that laryngeal
 pathologies increase vocal fold mass and stiffness, reducing the amplitude
 of glottal oscillation
-\cite{patel2016effects,little2013glottal}.
+\cite{patel2016effects,little2007glottal}.
 In the male subgroup (\num{3} Healthy vs.\ \num{14} Pathological), cv
 shows the same directional trend ($0.75$ vs.\ $0.63$) but does not reach
 significance ($p{=}0.509$), as expected given the very small Healthy
@@ -813,7 +813,7 @@ recall further and is left as future work.
 The \gaw{} analysis is not intended as a clinical study of new biomarkers;
 rather, it serves as a technical validation that the fully automated pipeline
 reproduces group differences previously established through manual
-segmentation~\cite{patel2016effects,little2013glottal}.
+segmentation~\cite{patel2016effects,little2007glottal}.
 Because the \girafe{} cohort has a significant sex imbalance (Fisher's
 exact $p{=}0.025$) and $f_0$ is strongly sex-dependent,
 \cref{tab:gaw} reports results stratified by sex rather than pooled.

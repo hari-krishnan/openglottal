@@ -1,8 +1,10 @@
 # OpenGlottal
 
+![Patient 1 montage](paper/patient1_montage.png)
+
 Open-source toolkit for automated glottal area segmentation from high-speed videoendoscopy (HSV).
 
-OpenGlottal combines a YOLOv8 glottis detector, a U-Net pixel-level segmenter, and a temporal vocal fold tracker into a single, reproducible inference and training pipeline — trained and evaluated on the [GIRAFE dataset](https://doi.org/10.5281/zenodo.7962150).
+OpenGlottal combines a YOLOv8 glottis detector, a U-Net pixel-level segmenter, and a temporal vocal fold tracker into a single, reproducible inference and training pipeline — trained and evaluated on the [GIRAFE dataset](https://zenodo.org/records/13773163) ([dataset paper](https://doi.org/10.1016/j.dib.2024.111376)).
 
 ---
 
@@ -234,7 +236,7 @@ OpenGlottal is developed and evaluated on **GIRAFE** and **BAGLS**. Download the
 python scripts/download_datasets.py --girafe --bagls
 ```
 
-- **GIRAFE** (Zenodo): [10.5281/zenodo.7962150](https://doi.org/10.5281/zenodo.7962150) — 760 frames (256×256 px), expert-annotated glottal masks. After unpacking: `GIRAFE/Training/imagesTr/`, `GIRAFE/Training/labelsTr/`, `GIRAFE/Training/training.json`; raw videos: `GIRAFE/Raw_Data/`.
+- **GIRAFE** (Zenodo): [zenodo.org/records/13773163](https://zenodo.org/records/13773163) — 760 frames (256×256 px), expert-annotated glottal masks. Dataset paper: [Data in Brief (2025)](https://doi.org/10.1016/j.dib.2024.111376). After unpacking: `GIRAFE/Training/imagesTr/`, `GIRAFE/Training/labelsTr/`, `GIRAFE/Training/training.json`; raw videos: `GIRAFE/Raw_Data/`.
 - **BAGLS** (Zenodo): [zenodo.org/record/3381469](https://zenodo.org/record/3381469) — benchmark for automatic glottis segmentation. Use the test set path as `--bagls-dir` for `eval_bagls.py` and `sweep_bagls_conf.py`.
 
 | Split (GIRAFE) | Frames |

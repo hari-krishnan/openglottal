@@ -20,7 +20,7 @@ import urllib.request
 from pathlib import Path
 
 # Zenodo record IDs (from paper / dataset DOIs)
-GIRAFE_RECORD_ID = "7962150"   # https://doi.org/10.5281/zenodo.7962150
+GIRAFE_RECORD_ID = "13773163"   # https://zenodo.org/records/13773163
 BAGLS_RECORD_ID = "3381469"    # https://zenodo.org/record/3381469
 
 ZENODO_API = "https://zenodo.org/api/records"
