@@ -14,10 +14,10 @@ Four pipelines are provided (three YOLO-gated and one U-Net-only), reflecting a 
 
 | Pipeline | Flag | Description |
 |----------|------|-------------|
-| **1 — VFT** | `vft` | YOLO detects the glottis → fixed-size crop → motion-based VocalFoldTracker |
-| **2 — Guided VFT** | `guided-vft` | YOLO bbox used as ROI mask on the full frame → YOLOGuidedVFT |
-| **3 — U-Net** | `unet` | YOLO + U-Net: full-frame U-Net → pixel count restricted to YOLO bbox (detection-gated) |
-| **4 — U-Net only** | `unet-only` | Full-frame U-Net only, no YOLO gate (requires `--unet-weights` only) |
+| **1 — VFT** | `vft` | YOLO detects the glottis → crop (size locked to first detection) → motion-based VocalFoldTracker |
+| **2 — Guided VFT** | `guided-vft` | YOLO bbox as ROI mask on the full frame → YOLOGuidedVFT (no cropping) |
+| **3 — U-Net** | `unet` | YOLO + U-Net: full-frame U-Net → pixel count restricted to the frames which have YOLO bbox (detection-gated) |
+| **4 — U-Net only** | `unet-only` | Full-frame U-Net only, no YOLO gate (only `--unet-weights` required) |
 
 All pipelines produce a per-frame **glottal area waveform** from which kinematic features (open quotient, fundamental frequency, periodicity, etc.) are extracted for downstream clinical analysis.
 
