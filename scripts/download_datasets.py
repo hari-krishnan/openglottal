@@ -15,13 +15,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import zipfile
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 # Zenodo record IDs (from paper / dataset DOIs)
 GIRAFE_RECORD_ID = "13773163"   # https://zenodo.org/records/13773163
-BAGLS_RECORD_ID = "3381469"    # https://zenodo.org/record/3381469
+BAGLS_RECORD_ID = "3377544"     # https://doi.org/10.5281/zenodo.3377544 (BAGLS, Gómez et al. Scientific Data 2020)
 
 ZENODO_API = "https://zenodo.org/api/records"
 
@@ -36,10 +37,11 @@ def _get_record(record_id: str) -> dict | None:
         return None
 
 
-def _download_file(url: str, dest: Path) -> bool:
-    req = urllib.request.Request(url, headers={"Accept": "application/octet-stream"})
+def _download_file(url: str, dest: Path, timeout: int = 3600) -> bool:
+    # Zenodo returns 406 if Accept is too strict; use */* for file content
+    req = urllib.request.Request(url, headers={"Accept": "*/*"})
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             total = int(resp.headers.get("Content-Length", 0)) or None
             dest.parent.mkdir(parents=True, exist_ok=True)
             with open(dest, "wb") as f:
@@ -66,11 +68,17 @@ def _download_file(url: str, dest: Path) -> bool:
                             break
                         f.write(chunk)
         return True
-    except (urllib.error.URLError, urllib.error.HTTPError, OSError):
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError) as e:
+        print(f"  Error: {e}")
         return False
 
 
-def download_record(record_id: str, name: str, output_dir: Path) -> bool:
+def download_record(
+    record_id: str,
+    name: str,
+    output_dir: Path,
+    only_keys: tuple[str, ...] | None = None,
+) -> bool:
     record = _get_record(record_id)
     if not record or "files" not in record:
         print(f"{name}: API failed or no files. Manual download:")
@@ -83,6 +91,8 @@ def download_record(record_id: str, name: str, output_dir: Path) -> bool:
     ok = True
     for fi in files:
         key = fi.get("key", fi.get("filename", "file"))
+        if only_keys is not None and key not in only_keys:
+            continue
         link = (fi.get("links") or {}).get("self")
         if not link:
             continue
@@ -91,8 +101,12 @@ def download_record(record_id: str, name: str, output_dir: Path) -> bool:
             print(f"  {key} already exists, skip")
             continue
         print(f"  Downloading {key} ...")
-        if not _download_file(link, dest):
+        # Large zips need long timeout (e.g. training.zip ~3.5 GB)
+        timeout = 3600 if key.endswith(".zip") else 120
+        if not _download_file(link, dest, timeout=timeout):
             print(f"  Failed: {key}")
+            rec_id = record.get("id", record_id)
+            print(f"  Manual: https://zenodo.org/record/{rec_id} (download {key} from the record page)")
             ok = False
     return ok
 
@@ -116,7 +130,22 @@ def main() -> None:
         download_record(GIRAFE_RECORD_ID, "GIRAFE", args.output_dir)
     if args.bagls:
         print("BAGLS:")
-        download_record(BAGLS_RECORD_ID, "BAGLS", args.output_dir)
+        bagls_dir = args.output_dir / "BAGLS"
+        bagls_dir.mkdir(parents=True, exist_ok=True)
+        download_record(
+            BAGLS_RECORD_ID,
+            "BAGLS",
+            bagls_dir,
+            only_keys=("training.zip", "test.zip", "_readme.md"),
+        )
+        # Extract so BAGLS/training/ and BAGLS/test/ exist (README paths)
+        for zname in ("training.zip", "test.zip"):
+            zpath = bagls_dir / zname
+            if zpath.exists():
+                print(f"  Extracting {zname} ...")
+                with zipfile.ZipFile(zpath, "r") as z:
+                    z.extractall(bagls_dir)
+                print(f"  → {bagls_dir / zname.replace('.zip', '')}/")
 
 
 if __name__ == "__main__":
