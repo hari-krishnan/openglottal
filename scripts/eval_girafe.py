@@ -26,8 +26,8 @@ python scripts/eval_girafe.py \\
     --images-dir  GIRAFE/Training/imagesTr \\
     --labels-dir  GIRAFE/Training/labelsTr \\
     --training-json GIRAFE/Training/training.json \\
-    --unet-weights glottal_detector/unet_glottis_v2.pt \\
-    --yolo-weights runs/detect/glottal_detector/yolov8n_girafe/weights/best.pt \\
+    --unet-weights outputs/openglottal_unet.pt \\
+    --yolo-weights outputs/openglottal_yolo.pt \\
     --device mps
 """
 
@@ -48,7 +48,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from openglottal.models import UNet, TemporalDetector
 from openglottal.models.tracker import YOLOGuidedVFT
 from openglottal.features import YGVFT_PARAMS, YGVFT_INIT
-from openglottal.utils import unet_segment_frame
+from openglottal.utils import unet_segment_frame, letterbox_with_info, unletterbox, resolve_weights_path
 
 # ── GIRAFE published baselines (mean across 4 test patients) ──────────────────
 GIRAFE_BASELINE = [
@@ -87,8 +87,9 @@ def unet_on_crop(
     crop_size: int = UNET_CROP_SIZE,
 ) -> np.ndarray:
     """
-    Crop YOLO bbox from a grayscale frame, resize to ``crop_size``×``crop_size``,
-    run U-Net, then project the output mask back to full-frame coordinates.
+    Crop YOLO bbox from a grayscale frame, letterbox to ``crop_size``×``crop_size``
+    (preserving aspect ratio), run U-Net, then project the output mask back to
+    full-frame coordinates.
 
     This gives U-Net higher effective resolution on the glottis region.
     NOTE: the existing U-Net was trained on full frames, so performance reflects
@@ -99,9 +100,15 @@ def unet_on_crop(
     if crop.size == 0:
         return np.zeros_like(gray)
     crop_h, crop_w = crop.shape[:2]
-    resized_crop = cv2.resize(crop, (crop_size, crop_size), interpolation=cv2.INTER_LINEAR)
-    mask_crop_sz = unet_segment_frame(resized_crop, unet_model, device)  # (crop_size, crop_size)
-    mask_orig = cv2.resize(mask_crop_sz, (crop_w, crop_h), interpolation=cv2.INTER_NEAREST)
+    # Letterbox crop to preserve aspect ratio
+    boxed, pad_t, pad_l, content_h, content_w = letterbox_with_info(
+        crop, crop_size, value=0
+    )
+    mask_crop_sz = unet_segment_frame(boxed, unet_model, device)
+    mask_orig = unletterbox(
+        mask_crop_sz, pad_t, pad_l, content_h, content_w,
+        crop_h, crop_w, interp=cv2.INTER_NEAREST,
+    )
     full_mask = np.zeros_like(gray)
     full_mask[y1:y2, x1:x2] = mask_orig
     return full_mask
@@ -344,20 +351,24 @@ def main() -> None:
     args = parse_args()
     device = torch.device(args.device)
 
+    # Resolve weight paths (support weights/ from in-progress or pre-migration runs)
+    unet_path = resolve_weights_path(args.unet_weights)
+    yolo_path = resolve_weights_path(args.yolo_weights) if args.yolo_weights else None
+
     unet = UNet(1, 1, (32, 64, 128, 256)).to(device)
     unet.load_state_dict(
-        torch.load(args.unet_weights, map_location=device, weights_only=True)
+        torch.load(unet_path, map_location=device, weights_only=True)
     )
     unet.eval()
-    print(f"Loaded U-Net  : {args.unet_weights}")
+    print(f"Loaded U-Net  : {unet_path}")
 
     detector = None
-    if args.yolo_weights:
+    if yolo_path is not None:
         detector = TemporalDetector(
-            args.yolo_weights,
+            str(yolo_path),
             max_hold_frames=args.max_hold_frames,
         )
-        print(f"Loaded YOLO   : {args.yolo_weights}  (max_hold_frames={args.max_hold_frames})")
+        print(f"Loaded YOLO   : {yolo_path}  (max_hold_frames={args.max_hold_frames})")
 
     splits = json.load(open(args.training_json))
     test_fnames = splits["test"]

@@ -17,9 +17,9 @@ Usage
 -----
 python scripts/eval_bagls.py \\
     --bagls-dir      BAGLS/test \\
-    --unet-weights   glottal_detector/unet_glottis_v2.pt \\
-    --crop-weights   glottal_detector/unet_glottis_crop.pt \\
-    --yolo-weights   runs/detect/glottal_detector/yolov8n_girafe/weights/best.pt \\
+    --unet-weights   outputs/openglottal_unet.pt \\
+    --crop-weights   outputs/openglottal_unet_crop.pt \\
+    --yolo-weights   outputs/openglottal_yolo.pt \\
     --device         mps \\
     --max-images     500
 """
@@ -34,10 +34,12 @@ import cv2
 import numpy as np
 import torch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+_repo_root = str(Path(__file__).resolve().parents[1])
+if _repo_root not in sys.path:
+    sys.path.append(_repo_root)
 
 from openglottal.models import UNet, TemporalDetector
-from openglottal.utils import unet_segment_frame
+from openglottal.utils import unet_segment_frame, letterbox_with_info, unletterbox, resolve_weights_path
 
 
 # ── Letterbox ─────────────────────────────────────────────────────────────────
@@ -96,9 +98,15 @@ def unet_on_crop(
     if crop.size == 0:
         return np.zeros_like(gray)
     crop_h, crop_w = crop.shape[:2]
-    resized = cv2.resize(crop, (crop_size, crop_size), interpolation=cv2.INTER_LINEAR)
-    mask_cs = unet_segment_frame(resized, model, device)
-    mask_orig = cv2.resize(mask_cs, (crop_w, crop_h), interpolation=cv2.INTER_NEAREST)
+    # Letterbox crop to crop_size×crop_size to preserve aspect ratio
+    boxed, pad_t, pad_l, content_h, content_w = letterbox_with_info(
+        crop, crop_size, value=0
+    )
+    mask_cs = unet_segment_frame(boxed, model, device)
+    mask_orig = unletterbox(
+        mask_cs, pad_t, pad_l, content_h, content_w,
+        crop_h, crop_w, interp=cv2.INTER_NEAREST,
+    )
     full = np.zeros_like(gray)
     full[y1:y2, x1:x2] = mask_orig
     return full
@@ -117,9 +125,11 @@ def evaluate(
     device: torch.device,
     max_images: int = 0,
     canvas: int = 256,
-) -> dict[str, dict]:
+) -> tuple[dict[str, dict], dict]:
     agg = {p: {"dice": [], "iou": [], "n_det": 0, "n_total": 0}
            for p in PIPELINES}
+    # Detection stats (TP/FP/FN) using presence of GT mask inside predicted bbox
+    det_stats: dict = {"tp": 0, "fp": 0, "fn": 0, "n_pos_gt": 0}
 
     img_files = sorted(
         f for f in test_dir.iterdir()
@@ -154,6 +164,31 @@ def evaluate(
             detector.reset()
         box = detector.detect(img_lb) if detector is not None else None
 
+        # Detection precision/recall bookkeeping: consider a frame positive
+        # when the ground-truth mask has any positive pixel. A predicted
+        # bbox counts as TP if the GT mask contains any positive pixel
+        # inside the predicted box; otherwise it's an FP. If no box is
+        # predicted but GT is positive, that's an FN.
+        if detector is not None:
+            gt_pos = (gt_lb > 0).any()
+            if gt_pos:
+                det_stats["n_pos_gt"] += 1
+            if box is not None:
+                x1, y1, x2, y2 = box
+                # clamp box to image
+                x1 = max(0, min(canvas, int(x1)))
+                x2 = max(0, min(canvas, int(x2)))
+                y1 = max(0, min(canvas, int(y1)))
+                y2 = max(0, min(canvas, int(y2)))
+                # check if any GT pixels inside predicted bbox
+                if gt_lb[y1:y2, x1:x2].any():
+                    det_stats["tp"] += 1
+                else:
+                    det_stats["fp"] += 1
+            else:
+                if gt_pos:
+                    det_stats["fn"] += 1
+
         # ── unet-only ──────────────────────────────────────────────────────
         agg["unet-only"]["n_total"] += 1
         mask_u = unet_segment_frame(gray_lb, unet_model, device)
@@ -186,12 +221,12 @@ def evaluate(
             agg["yolo-crop+unet"]["dice"].append(d)
             agg["yolo-crop+unet"]["iou"].append(iu)
 
-    return agg
+    return agg, det_stats
 
 
 # ── Pretty-print ──────────────────────────────────────────────────────────────
 
-def print_table(agg: dict, has_yolo: bool, has_crop: bool) -> None:
+def print_table(agg: dict, has_yolo: bool, has_crop: bool, det_stats: dict | None = None) -> None:
     label_map = {
         "unet-only":       "U-Net only",
         "yolo+unet":       "YOLO+UNet",
@@ -229,6 +264,17 @@ def print_table(agg: dict, has_yolo: bool, has_crop: bool) -> None:
     print(f"  Evaluated on {agg['unet-only']['n_total']} BAGLS test frames")
     print()
 
+    # If YOLO was enabled, print detection precision/recall based on
+    # presence of GT mask inside predicted bboxes (TP/FP/FN counts).
+    if has_yolo and det_stats is not None:
+        tp = det_stats.get("tp", 0)
+        fp = det_stats.get("fp", 0)
+        fn = det_stats.get("fn", 0)
+        prec = float(tp) / (tp + fp) if (tp + fp) > 0 else float("nan")
+        rec = float(tp) / (tp + fn) if (tp + fn) > 0 else float("nan")
+        print(f"  YOLO detection — Precision: {prec:.3f}  Recall: {rec:.3f}  (TP={tp} FP={fp} FN={fn})")
+        print()
+
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
@@ -252,7 +298,10 @@ def parse_args() -> argparse.Namespace:
                    help="Evaluate only the first N images (0 = all 3502).")
     p.add_argument("--conf",          type=float, default=0.25,
                    help="YOLO confidence threshold.")
-    p.add_argument("--output-json",   default=None)
+    p.add_argument("--output-json",   default=None,
+                   help="Save per-frame metrics to this JSON path.")
+    p.add_argument("--no-timestamp",  action="store_true",
+                   help="Save to exact --output-json path (no timestamp suffix).")
     return p.parse_args()
 
 
@@ -260,27 +309,32 @@ def main() -> None:
     args   = parse_args()
     device = torch.device(args.device)
 
+    # Resolve weight paths (support weights/ from in-progress or pre-migration runs)
+    unet_path = resolve_weights_path(args.unet_weights)
+    crop_path = resolve_weights_path(args.crop_weights) if args.crop_weights else None
+    yolo_path = resolve_weights_path(args.yolo_weights) if args.yolo_weights else None
+
     # Full-frame U-Net
     unet = UNet(1, 1, (32, 64, 128, 256)).to(device)
     unet.load_state_dict(
-        torch.load(args.unet_weights, map_location=device, weights_only=True))
+        torch.load(unet_path, map_location=device, weights_only=True))
     unet.eval()
-    print(f"Loaded full-frame U-Net : {args.unet_weights}")
+    print(f"Loaded full-frame U-Net : {unet_path}")
 
     # Crop-mode U-Net (optional)
     crop_model = None
-    if args.crop_weights:
+    if crop_path is not None:
         crop_model = UNet(1, 1, (32, 64, 128, 256)).to(device)
         crop_model.load_state_dict(
-            torch.load(args.crop_weights, map_location=device, weights_only=True))
+            torch.load(crop_path, map_location=device, weights_only=True))
         crop_model.eval()
-        print(f"Loaded crop U-Net       : {args.crop_weights}")
+        print(f"Loaded crop U-Net       : {crop_path}")
 
     # YOLO (optional)
     detector = None
-    if args.yolo_weights:
-        detector = TemporalDetector(args.yolo_weights, conf=args.conf)
-        print(f"Loaded YOLO (conf={args.conf:.2f}): {args.yolo_weights}")
+    if yolo_path is not None:
+        detector = TemporalDetector(str(yolo_path), conf=args.conf)
+        print(f"Loaded YOLO (conf={args.conf:.2f}): {yolo_path}")
 
     test_dir = Path(args.bagls_dir)
     n_avail  = sum(1 for f in test_dir.iterdir()
@@ -288,7 +342,7 @@ def main() -> None:
     n_eval   = args.max_images if args.max_images else n_avail
     print(f"\nBAGLS test frames : {n_avail} available, evaluating {n_eval}\n")
 
-    agg = evaluate(
+    agg, det_stats = evaluate(
         test_dir   = test_dir,
         unet_model = unet,
         crop_model = crop_model,
@@ -298,18 +352,32 @@ def main() -> None:
         canvas     = args.canvas,
     )
 
-    print_table(agg, has_yolo=detector is not None, has_crop=crop_model is not None)
+    print_table(agg, has_yolo=detector is not None, has_crop=crop_model is not None,
+                det_stats=det_stats if detector is not None else None)
 
     if args.output_json:
         import json
+        from datetime import datetime
         serialisable = {
             pipe: {k: (v if isinstance(v, (int, float)) else [float(x) for x in v])
                    for k, v in data.items()}
             for pipe, data in agg.items()
         }
-        with open(args.output_json, "w") as f:
+        out_path = Path(args.output_json)
+        if args.no_timestamp:
+            save_path = out_path
+        else:
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            save_path = out_path.parent / f"{out_path.stem}_{ts}{out_path.suffix}"
+        serialisable["_meta"] = {
+            "bagls_dir": args.bagls_dir,
+            "crop_letterbox": True,
+            "written_at": datetime.now().isoformat(),
+        }
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(save_path, "w") as f:
             json.dump(serialisable, f, indent=2)
-        print(f"Raw results saved → {args.output_json}")
+        print(f"Raw results saved → {save_path}")
 
 
 if __name__ == "__main__":
