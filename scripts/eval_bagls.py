@@ -125,6 +125,7 @@ def evaluate(
     device: torch.device,
     max_images: int = 0,
     canvas: int = 256,
+    crop_pad: int = 0,
 ) -> tuple[dict[str, dict], dict]:
     agg = {p: {"dice": [], "iou": [], "n_det": 0, "n_total": 0}
            for p in PIPELINES}
@@ -214,6 +215,13 @@ def evaluate(
             agg["yolo-crop+unet"]["n_total"] += 1
             if box is not None:
                 agg["yolo-crop+unet"]["n_det"] += 1
+                # Optionally expand box by crop_pad (clamped to canvas)
+                if crop_pad:
+                    x1, y1, x2, y2 = box
+                    box = (
+                        max(0, x1 - crop_pad), max(0, y1 - crop_pad),
+                        min(canvas, x2 + crop_pad), min(canvas, y2 + crop_pad),
+                    )
                 mask_c = unet_on_crop(gray_lb, box, crop_model, device)
             else:
                 mask_c = np.zeros_like(gray_lb)
@@ -298,6 +306,8 @@ def parse_args() -> argparse.Namespace:
                    help="Evaluate only the first N images (0 = all 3502).")
     p.add_argument("--conf",          type=float, default=0.25,
                    help="YOLO confidence threshold.")
+    p.add_argument("--crop-pad",      type=int, default=0,
+                   help="Padding (px) around YOLO box for yolo-crop+unet pipeline.")
     p.add_argument("--output-json",   default=None,
                    help="Save per-frame metrics to this JSON path.")
     p.add_argument("--no-timestamp",  action="store_true",
@@ -350,6 +360,7 @@ def main() -> None:
         device     = device,
         max_images = args.max_images,
         canvas     = args.canvas,
+        crop_pad   = args.crop_pad,
     )
 
     print_table(agg, has_yolo=detector is not None, has_crop=crop_model is not None,

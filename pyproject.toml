@@ -19,6 +19,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Image Processing",
 ]
 dependencies = [
+    "h5py>=3.8",
     "torch>=2.0",
     "torchvision>=0.15",
     "ultralytics>=8.0",
@@ -27,10 +28,11 @@ dependencies = [
     "scipy>=1.10",
     "matplotlib>=3.7",
     "tqdm>=4.65",
+    "tensorboard>=2.14",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "ruff", "mypy"]
+dev = ["pytest", "pytest-cov", "ruff", "mypy", "kaggle>=1.6"]
 docs = ["mkdocs", "mkdocs-material"]
 
 [project.scripts]

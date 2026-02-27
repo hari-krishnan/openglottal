@@ -6,169 +6,103 @@
   \def\href#1#2{#2} \def\path#1{#1}\fi
 
 \bibitem{jocher2023yolo}
-G.~Jocher, A.~Chaurasia, J.~Qiu,
-  \href{https://github.com/ultralytics/ultralytics}{{Ultralytics YOLOv8}},
-  version 8.0.0, AGPL-3.0 (2023).
+G.~Jocher, A.~Chaurasia, J.~Qiu, \href{https://github.com/ultralytics/ultralytics}{{Ultralytics YOLOv8}}, version 8.0.0, AGPL-3.0 (2023).
 \newline\urlprefix\url{https://github.com/ultralytics/ultralytics}
 
 \bibitem{ronneberger2015unet}
-O.~Ronneberger, P.~Fischer, T.~Brox, {U-Net}: Convolutional networks for
-  biomedical image segmentation, in: Medical Image Computing and
-  Computer-Assisted Intervention (MICCAI), Vol. 9351 of Lecture Notes in
-  Computer Science, Springer, 2015, pp. 234--241.
-\newblock \href {https://doi.org/10.1007/978-3-319-24574-4_28}
-  {\path{doi:10.1007/978-3-319-24574-4_28}}.
-
-\bibitem{deliyski2008laryngoscope}
-D.~D. Deliyski, Clinical implementation of laryngeal high-speed videoendoscopy:
-  Challenges and evolution, Folia Phoniatrica et Logopaedica 60~(1) (2008)
-  33--44.
-\newblock \href {https://doi.org/10.1159/000111802}
-  {\path{doi:10.1159/000111802}}.
-
-\bibitem{little2007glottal}
-M.~A. Little, P.~E. McSharry, S.~J. Roberts, D.~A.~E. Costello, I.~M. Moroz,
-  Exploiting nonlinear recurrence and fractal scaling properties for voice
-  disorder detection, BioMedical Engineering OnLine 6 (2007) 23.
-\newblock \href {https://doi.org/10.1186/1475-925X-6-23}
-  {\path{doi:10.1186/1475-925X-6-23}}.
-
-\bibitem{lohscheller2008laryngoscope}
-J.~Lohscheller, U.~Eysholdt, H.~Toy, M.~D\"{o}llinger, Phonovibrography:
-  Mapping high-speed movies of vocal fold vibrations into {2-D} diagrams for
-  visualizing and analyzing the underlying laryngeal dynamics, IEEE
-  Transactions on Medical Imaging 27~(3) (2008) 300--309.
-\newblock \href {https://doi.org/10.1109/TMI.2007.903690}
-  {\path{doi:10.1109/TMI.2007.903690}}.
-
-\bibitem{patel2013invivo}
-R.~R. Patel, D.~Dubrovskiy, M.~Döllinger, Characterizing vibratory kinematics
-  in children and adults with high-speed digital imaging, Journal of Speech,
-  Language, and Hearing Research 57~(2) (2014) S674--S686.
-\newblock \href {https://doi.org/10.1044/2014_JSLHR-S-12-0278}
-  {\path{doi:10.1044/2014_JSLHR-S-12-0278}}.
-
-\bibitem{patel2016effects}
-R.~R. Patel, K.~D. Donohue, D.~Lau, H.~Unnikrishnan, In vivo measurement of
-  pediatric vocal fold motion using structured light laser projection, PLOS ONE
-  11~(4) (2016) e0154586.
-\newblock \href {https://doi.org/10.1371/journal.pone.0154586}
-  {\path{doi:10.1371/journal.pone.0154586}}.
-
-\bibitem{andrade2025datainbrief}
-G.~Andrade-Miranda, M.~Hern\'{a}ndez-\'{A}lvarez, J.~I. Godino-Llorente,
-  \href{https://doi.org/10.1016/j.dib.2024.111376}{{GIRAFE}: Glottal imaging
-  dataset for advanced segmentation, analysis, and facilitative playbacks
-  evaluation}, Data in Brief 59 (2025) 111376.
-\newblock \href {https://doi.org/10.1016/j.dib.2024.111376}
-  {\path{doi:10.1016/j.dib.2024.111376}}.
-\newline\urlprefix\url{https://doi.org/10.1016/j.dib.2024.111376}
-
-\bibitem{cao2022swinunet}
-H.~Cao, Y.~Wang, J.~Chen, D.~Jiang, X.~Zhang, Q.~Tian, M.~Wang, Swin-unet:
-  Unet-like pure transformer for medical image segmentation, in: Computer
-  Vision -- ECCV 2022 Workshops, Vol. 13803 of Lecture Notes in Computer
-  Science, Springer, 2022, pp. 205--218.
-\newblock \href {https://doi.org/10.1007/978-3-031-25066-8_9}
-  {\path{doi:10.1007/978-3-031-25066-8_9}}.
+O.~Ronneberger, P.~Fischer, T.~Brox, {U-Net}: Convolutional networks for biomedical image segmentation, in: Medical Image Computing and Computer-Assisted Intervention (MICCAI), Vol. 9351 of Lecture Notes in Computer Science, Springer, 2015, pp. 234--241.
+\newblock \href {https://doi.org/10.1007/978-3-319-24574-4_28} {\path{doi:10.1007/978-3-319-24574-4_28}}.
 
 \bibitem{gomez2020bagls}
-P.~G\'{o}mez, A.~M. Kist, P.~Schlegel, D.~A. Berry, D.~K. Chhetri,
-  R.~Monta\~{n}o, F.~M\"{u}ller, A.~Sch\"{u}tzenberger, M.~Semmler,
-  S.~D\"{u}rr, D.~Eytan, J.~Lohscheller, M.~Echternach, M.~D\"{o}llinger,
-  {BAGLS}, a multihospital benchmark for automatic glottis segmentation,
-  Scientific Data 7 (2020) 186.
-\newblock \href {https://doi.org/10.1038/s41597-020-0526-3}
-  {\path{doi:10.1038/s41597-020-0526-3}}.
+P.~G\'{o}mez, A.~M. Kist, P.~Schlegel, D.~A. Berry, D.~K. Chhetri, R.~Monta\~{n}o, F.~M\"{u}ller, A.~Sch\"{u}tzenberger, M.~Semmler, S.~D\"{u}rr, D.~Eytan, J.~Lohscheller, M.~Echternach, M.~D\"{o}llinger, {BAGLS}, a multihospital benchmark for automatic glottis segmentation, Scientific Data 7 (2020) 186.
+\newblock \href {https://doi.org/10.1038/s41597-020-0526-3} {\path{doi:10.1038/s41597-020-0526-3}}.
+
+\bibitem{wu2024medsegdiff}
+J.~Wu, R.~Fu, H.~Fang, Y.~Zhang, Y.~Yang, H.~Xiong, H.~Liu, Y.~Xu, \href{https://proceedings.mlr.press/v227/wu24a.html}{{MedSegDiff}: Medical image segmentation with diffusion probabilistic model}, in: Medical Imaging with Deep Learning, Vol. 227 of Proceedings of Machine Learning Research, PMLR, 2024, pp. 1623--1639.
+\newline\urlprefix\url{https://proceedings.mlr.press/v227/wu24a.html}
+
+\bibitem{deliyski2008laryngoscope}
+D.~D. Deliyski, Clinical implementation of laryngeal high-speed videoendoscopy: Challenges and evolution, Folia Phoniatrica et Logopaedica 60~(1) (2008) 33--44.
+\newblock \href {https://doi.org/10.1159/000111802} {\path{doi:10.1159/000111802}}.
+
+\bibitem{little2007glottal}
+M.~A. Little, P.~E. McSharry, S.~J. Roberts, D.~A.~E. Costello, I.~M. Moroz, Exploiting nonlinear recurrence and fractal scaling properties for voice disorder detection, BioMedical Engineering OnLine 6 (2007) 23.
+\newblock \href {https://doi.org/10.1186/1475-925X-6-23} {\path{doi:10.1186/1475-925X-6-23}}.
+
+\bibitem{lohscheller2008laryngoscope}
+J.~Lohscheller, U.~Eysholdt, H.~Toy, M.~D\"{o}llinger, Phonovibrography: Mapping high-speed movies of vocal fold vibrations into {2-D} diagrams for visualizing and analyzing the underlying laryngeal dynamics, IEEE Transactions on Medical Imaging 27~(3) (2008) 300--309.
+\newblock \href {https://doi.org/10.1109/TMI.2007.903690} {\path{doi:10.1109/TMI.2007.903690}}.
+
+\bibitem{patel2013invivo}
+R.~R. Patel, D.~Dubrovskiy, M.~Döllinger, Characterizing vibratory kinematics in children and adults with high-speed digital imaging, Journal of Speech, Language, and Hearing Research 57~(2) (2014) S674--S686.
+\newblock \href {https://doi.org/10.1044/2014_JSLHR-S-12-0278} {\path{doi:10.1044/2014_JSLHR-S-12-0278}}.
+
+\bibitem{patel2016effects}
+R.~R. Patel, K.~D. Donohue, D.~Lau, H.~Unnikrishnan, In vivo measurement of pediatric vocal fold motion using structured light laser projection, PLOS ONE 11~(4) (2016) e0154586.
+\newblock \href {https://doi.org/10.1371/journal.pone.0154586} {\path{doi:10.1371/journal.pone.0154586}}.
+
+\bibitem{andrade2025datainbrief}
+G.~Andrade-Miranda, M.~Hern\'{a}ndez-\'{A}lvarez, J.~I. Godino-Llorente, \href{https://doi.org/10.1016/j.dib.2025.111376}{{GIRAFE}: Glottal imaging dataset for advanced segmentation, analysis, and facilitative playbacks evaluation}, Data in Brief 59 (2025) 111376.
+\newblock \href {https://doi.org/10.1016/j.dib.2025.111376} {\path{doi:10.1016/j.dib.2025.111376}}.
+\newline\urlprefix\url{https://doi.org/10.1016/j.dib.2025.111376}
+
+\bibitem{cao2022swinunet}
+H.~Cao, Y.~Wang, J.~Chen, D.~Jiang, X.~Zhang, Q.~Tian, M.~Wang, Swin-unet: Unet-like pure transformer for medical image segmentation, in: Computer Vision -- ECCV 2022 Workshops, Vol. 13803 of Lecture Notes in Computer Science, Springer, 2022, pp. 205--218.
+\newblock \href {https://doi.org/10.1007/978-3-031-25066-8_9} {\path{doi:10.1007/978-3-031-25066-8_9}}.
 
 \bibitem{kist2022latent}
-A.~M. Kist, J.~Zilker, P.~G\'{o}mez, A.~Sch\"{u}tzenberger, M.~D\"{o}llinger, A
-  single latent channel is sufficient for biomedical glottis segmentation,
-  Scientific Reports 12 (2022) 14292.
-\newblock \href {https://doi.org/10.1038/s41598-022-17764-1}
-  {\path{doi:10.1038/s41598-022-17764-1}}.
+A.~M. Kist, J.~Zilker, P.~G\'{o}mez, A.~Sch\"{u}tzenberger, M.~D\"{o}llinger, A single latent channel is sufficient for biomedical glottis segmentation, Scientific Reports 12 (2022) 14292.
+\newblock \href {https://doi.org/10.1038/s41598-022-17764-1} {\path{doi:10.1038/s41598-022-17764-1}}.
 
 \bibitem{fehling2020convlstm}
-M.~K. Fehling, F.~Grosch, M.~E. Schuster, B.~Schick, J.~Lohscheller, Fully
-  automatic segmentation of glottis and vocal folds in endoscopic laryngeal
-  high-speed videos using a deep convolutional {LSTM} network, PLOS ONE 15~(2)
-  (2020) e0227791.
-\newblock \href {https://doi.org/10.1371/journal.pone.0227791}
-  {\path{doi:10.1371/journal.pone.0227791}}.
+M.~K. Fehling, F.~Grosch, M.~E. Schuster, B.~Schick, J.~Lohscheller, Fully automatic segmentation of glottis and vocal folds in endoscopic laryngeal high-speed videos using a deep convolutional {LSTM} network, PLOS ONE 15~(2) (2020) e0227791.
+\newblock \href {https://doi.org/10.1371/journal.pone.0227791} {\path{doi:10.1371/journal.pone.0227791}}.
+
+\bibitem{nobel2024ensemble}
+A.~Nobel, colleagues, Ensemble {UNet}-{BiGRU} segmentation for glottal imaging, private-dataset study (24k images) reporting IoU 87.46\%; no evaluation on public BAGLS or GIRAFE benchmarks. (2024).
 
 \bibitem{kist2021gat}
-A.~M. Kist, P.~G\'{o}mez, A.~Sch\"{u}tzenberger, M.~D\"{o}llinger, {Glottis
-  Analysis Tools}: Open tools for laryngeal high-speed videoendoscopy analysis,
-  Journal of Speech, Language, and Hearing Research (2021).
-\newblock \href {https://doi.org/10.1044/2021_JSLHR-21-00064}
-  {\path{doi:10.1044/2021_JSLHR-21-00064}}.
+A.~M. Kist, P.~G\'{o}mez, A.~Sch\"{u}tzenberger, M.~D\"{o}llinger, {Glottis Analysis Tools}: Open tools for laryngeal high-speed videoendoscopy analysis, Journal of Speech, Language, and Hearing Research (2021).
+\newblock \href {https://doi.org/10.1044/2021_JSLHR-21-00064} {\path{doi:10.1044/2021_JSLHR-21-00064}}.
 
 \bibitem{kirillov2023sam}
-A.~Kirillov, E.~Mintun, N.~Ravi, H.~Mao, C.~Rolland, L.~Gustafson, T.~Xiao,
-  S.~Whitehead, A.~C. Berg, W.-Y. Lo, P.~Doll\'{a}r, R.~Girshick, Segment
-  anything, in: IEEE/CVF International Conference on Computer Vision (ICCV),
-  2023, pp. 4015--4026.
-\newblock \href {https://doi.org/10.1109/ICCV51070.2023.00371}
-  {\path{doi:10.1109/ICCV51070.2023.00371}}.
+A.~Kirillov, E.~Mintun, N.~Ravi, H.~Mao, C.~Rolland, L.~Gustafson, T.~Xiao, S.~Whitehead, A.~C. Berg, W.-Y. Lo, P.~Doll\'{a}r, R.~Girshick, Segment anything, in: IEEE/CVF International Conference on Computer Vision (ICCV), 2023, pp. 4015--4026.
+\newblock \href {https://doi.org/10.1109/ICCV51070.2023.00371} {\path{doi:10.1109/ICCV51070.2023.00371}}.
 
 \bibitem{ma2024medsam}
-J.~Ma, Y.~He, F.~Li, L.~Han, C.~You, B.~Wang, Segment anything in medical
-  images, Nature Communications 15 (2024) 654.
-\newblock \href {https://doi.org/10.1038/s41467-024-44824-z}
-  {\path{doi:10.1038/s41467-024-44824-z}}.
+J.~Ma, Y.~He, F.~Li, L.~Han, C.~You, B.~Wang, Segment anything in medical images, Nature Communications 15 (2024) 654.
+\newblock \href {https://doi.org/10.1038/s41467-024-44824-z} {\path{doi:10.1038/s41467-024-44824-z}}.
 
 \bibitem{he2017maskrcnn}
-K.~He, G.~Gkioxari, P.~Doll\'{a}r, R.~Girshick, Mask {R-CNN}, in: IEEE
-  International Conference on Computer Vision (ICCV), 2017, pp. 2980--2988.
-\newblock \href {https://doi.org/10.1109/ICCV.2017.322}
-  {\path{doi:10.1109/ICCV.2017.322}}.
+K.~He, G.~Gkioxari, P.~Doll\'{a}r, R.~Girshick, Mask {R-CNN}, in: IEEE International Conference on Computer Vision (ICCV), 2017, pp. 2980--2988.
+\newblock \href {https://doi.org/10.1109/ICCV.2017.322} {\path{doi:10.1109/ICCV.2017.322}}.
 
 \bibitem{andrade2015glottal}
-G.~Andrade-Miranda, J.~I. Godino-Llorente, L.~Moro-Vel\'{a}zquez, J.~A.
-  G\'{o}mez-Garc\'{\i}a, \href{https://doi.org/10.1186/s12938-015-0096-3}{An
-  automatic method to detect and track the glottal gap from high speed
-  videoendoscopic images}, Biomed. Eng. Online 14 (2015) 100.
-\newblock \href {https://doi.org/10.1186/s12938-015-0096-3}
-  {\path{doi:10.1186/s12938-015-0096-3}}.
+G.~Andrade-Miranda, J.~I. Godino-Llorente, L.~Moro-Vel\'{a}zquez, J.~A. G\'{o}mez-Garc\'{\i}a, \href{https://doi.org/10.1186/s12938-015-0096-3}{An automatic method to detect and track the glottal gap from high speed videoendoscopic images}, Biomed. Eng. Online 14 (2015) 100.
+\newblock \href {https://doi.org/10.1186/s12938-015-0096-3} {\path{doi:10.1186/s12938-015-0096-3}}.
 \newline\urlprefix\url{https://doi.org/10.1186/s12938-015-0096-3}
 
 \bibitem{milletari2016vnet}
-F.~Milletari, N.~Navab, S.-A. Ahmadi, {V-Net}: Fully convolutional neural
-  networks for volumetric medical image segmentation, in: Fourth International
-  Conference on 3D Vision (3DV), 2016, pp. 565--571.
-\newblock \href {https://doi.org/10.1109/3DV.2016.79}
-  {\path{doi:10.1109/3DV.2016.79}}.
+F.~Milletari, N.~Navab, S.-A. Ahmadi, {V-Net}: Fully convolutional neural networks for volumetric medical image segmentation, in: Fourth International Conference on 3D Vision (3DV), 2016, pp. 565--571.
+\newblock \href {https://doi.org/10.1109/3DV.2016.79} {\path{doi:10.1109/3DV.2016.79}}.
 
 \bibitem{loshchilov2019adamw}
-I.~Loshchilov, F.~Hutter,
-  \href{https://openreview.net/forum?id=Bkg6RiCqY7}{Decoupled weight decay
-  regularization}, in: International Conference on Learning Representations
-  (ICLR), 2019, pp. 1--22.
+I.~Loshchilov, F.~Hutter, \href{https://openreview.net/forum?id=Bkg6RiCqY7}{Decoupled weight decay regularization}, in: International Conference on Learning Representations (ICLR), 2019, pp. 1--22.
 \newline\urlprefix\url{https://openreview.net/forum?id=Bkg6RiCqY7}
 
 \bibitem{loshchilov2017sgdr}
-I.~Loshchilov, F.~Hutter,
-  \href{https://openreview.net/forum?id=Skq89Scxx}{{SGDR}: Stochastic gradient
-  descent with warm restarts}, in: International Conference on Learning
-  Representations (ICLR), 2017, pp. 1--16.
+I.~Loshchilov, F.~Hutter, \href{https://openreview.net/forum?id=Skq89Scxx}{{SGDR}: Stochastic gradient descent with warm restarts}, in: International Conference on Learning Representations (ICLR), 2017, pp. 1--16.
 \newline\urlprefix\url{https://openreview.net/forum?id=Skq89Scxx}
 
 \bibitem{patel2015kinematic}
-R.~R. Patel, K.~D. Donohue, H.~Unnikrishnan, R.~J. Kryscio, Kinematic
-  measurements of the vocal-fold displacement waveform in typical children and
-  adult populations: quantification of high-speed endoscopic videos, Journal of
-  Speech, Language, and Hearing Research 58~(2) (2015) 227--240.
+R.~R. Patel, K.~D. Donohue, H.~Unnikrishnan, R.~J. Kryscio, Kinematic measurements of the vocal-fold displacement waveform in typical children and adult populations: quantification of high-speed endoscopic videos, Journal of Speech, Language, and Hearing Research 58~(2) (2015) 227--240.
 
 \bibitem{otsu1979threshold}
-N.~Otsu, A threshold selection method from gray-level histograms, IEEE
-  Transactions on Systems, Man, and Cybernetics 9~(1) (1979) 62--66.
-\newblock \href {https://doi.org/10.1109/TSMC.1979.4310076}
-  {\path{doi:10.1109/TSMC.1979.4310076}}.
+N.~Otsu, A threshold selection method from gray-level histograms, IEEE Transactions on Systems, Man, and Cybernetics 9~(1) (1979) 62--66.
+\newblock \href {https://doi.org/10.1109/TSMC.1979.4310076} {\path{doi:10.1109/TSMC.1979.4310076}}.
 
 \bibitem{kingma2015adam}
-D.~P. Kingma, J.~Ba, \href{https://arxiv.org/abs/1412.6980}{Adam: A method for
-  stochastic optimization}, in: International Conference on Learning
-  Representations (ICLR), 2015, pp. 1--15.
+D.~P. Kingma, J.~Ba, \href{https://arxiv.org/abs/1412.6980}{Adam: A method for stochastic optimization}, in: International Conference on Learning Representations (ICLR), 2015, pp. 1--15.
 \newline\urlprefix\url{https://arxiv.org/abs/1412.6980}
 
 \end{thebibliography}

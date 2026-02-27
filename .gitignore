@@ -15,11 +15,15 @@ build/
 *.mp4
 data/
 
+# All trained models and YOLO run outputs (single dir for U-Net + YOLO)
+outputs/
+
+# TensorBoard / legacy YOLO runs
+runs/
+
 # Notebooks
 .ipynb_checkpoints/
 
-# YOLO runs
-runs/
 
 # OS
 .DS_Store
@@ -40,3 +44,7 @@ Thumbs.db
 # Generated evaluation/output (reproducible via scripts)
 results/
 eval_results*.json
+
+# Kaggle push staging (scripts/push_to_kaggle.py)
+kaggle_upload/
+kaggle_kernel_push/

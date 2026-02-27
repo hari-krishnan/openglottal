@@ -8,9 +8,9 @@ Usage
 -----
 python scripts/sweep_bagls_conf.py \
     --bagls-dir      BAGLS/test \
-    --unet-weights   glottal_detector/unet_glottis_v2.pt \
-    --crop-weights   glottal_detector/unet_glottis_crop.pt \
-    --yolo-weights   runs/detect/glottal_detector/yolov8n_girafe/weights/best.pt \
+    --unet-weights   outputs/openglottal_unet.pt \
+    --crop-weights   outputs/openglottal_unet_crop.pt \
+    --yolo-weights   outputs/openglottal_yolo.pt \
     --device         mps
 """
 
@@ -29,7 +29,7 @@ from ultralytics import YOLO
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from openglottal.models import UNet
-from openglottal.utils import unet_segment_frame
+from openglottal.utils import unet_segment_frame, letterbox_with_info, unletterbox, resolve_weights_path
 
 CONF_THRESHOLDS = [0.001, 0.005, 0.01, 0.02, 0.03, 0.05, 0.10, 0.15, 0.20, 0.25]
 PIPELINES = ["unet-only", "yolo+unet", "yolo-crop+unet"]
@@ -75,9 +75,15 @@ def unet_on_crop(
     if crop.size == 0:
         return np.zeros_like(gray)
     crop_h, crop_w = crop.shape[:2]
-    resized = cv2.resize(crop, (crop_size, crop_size), interpolation=cv2.INTER_LINEAR)
-    mask_cs = unet_segment_frame(resized, model, device)
-    mask_orig = cv2.resize(mask_cs, (crop_w, crop_h), interpolation=cv2.INTER_NEAREST)
+    # Letterbox crop to preserve aspect ratio
+    boxed, pad_t, pad_l, content_h, content_w = letterbox_with_info(
+        crop, crop_size, value=0
+    )
+    mask_cs = unet_segment_frame(boxed, model, device)
+    mask_orig = unletterbox(
+        mask_cs, pad_t, pad_l, content_h, content_w,
+        crop_h, crop_w, interp=cv2.INTER_NEAREST,
+    )
     full = np.zeros_like(gray)
     full[y1:y2, x1:x2] = mask_orig
     return full
@@ -121,21 +127,25 @@ def main() -> None:
 
     device = torch.device(args.device)
 
+    unet_path = resolve_weights_path(args.unet_weights)
+    crop_path = resolve_weights_path(args.crop_weights) if args.crop_weights else None
+    yolo_path = resolve_weights_path(args.yolo_weights)
+
     unet = UNet(1, 1, (32, 64, 128, 256)).to(device)
-    unet.load_state_dict(torch.load(args.unet_weights, map_location=device, weights_only=True))
+    unet.load_state_dict(torch.load(unet_path, map_location=device, weights_only=True))
     unet.eval()
-    print(f"Loaded full-frame U-Net : {args.unet_weights}")
+    print(f"Loaded full-frame U-Net : {unet_path}")
 
     crop_model = None
-    if args.crop_weights:
+    if crop_path is not None:
         crop_model = UNet(1, 1, (32, 64, 128, 256)).to(device)
         crop_model.load_state_dict(
-            torch.load(args.crop_weights, map_location=device, weights_only=True))
+            torch.load(crop_path, map_location=device, weights_only=True))
         crop_model.eval()
-        print(f"Loaded crop U-Net       : {args.crop_weights}")
+        print(f"Loaded crop U-Net       : {crop_path}")
 
-    yolo_model = YOLO(args.yolo_weights)
-    print(f"Loaded YOLO             : {args.yolo_weights}")
+    yolo_model = YOLO(str(yolo_path))
+    print(f"Loaded YOLO             : {yolo_path}")
 
     test_dir = Path(args.bagls_dir)
     img_files = sorted(

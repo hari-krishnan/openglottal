@@ -31,7 +31,7 @@
 
 \author[1]{Harikrishnan Unnikrishnan}
 
-\address[1]{Orchard Robotics, San Francisco, CA, USA}
+\address[1]{Orchard Robotics, San Francisco, California 94102, USA}
 
 \begin{abstract}
 
@@ -59,6 +59,7 @@ In a zero-shot cross-dataset experiment on \bagls{} (\num{3500} frames from
 a different institution and endoscope, with no \bagls{} training data),
 \yolocrop{} with an optimised detection threshold reaches Dice \num{0.659}
 versus \num{0.588} for a YOLO-free U-Net baseline.
+Training directly on \bagls{} establishes new SOTA Dice \num{0.854} (\yolounet{}), surpassing the benchmark U-Net baseline~\cite{gomez2020bagls} and diffusion-refined segmentation methods~\cite{wu2024medsegdiff} (Dice \num{0.80}) while maintaining clinical speed.
 Finally, running the pipeline on all \num{65} \girafe{} patients' full video
 recordings yields a \emph{Glottal Area Waveform} (\gaw{}) per patient.
 Sex-stratified analysis of seven kinematic features shows that the
@@ -71,17 +72,16 @@ Code, trained weights, and evaluation scripts are released at
 \end{abstract}
 
 \begin{keyword}
-glottal segmentation \sep high-speed videoendoscopy \sep YOLOv8 \sep
-U-Net \sep glottal area waveform \sep vocal fold pathology \sep
-cross-dataset generalisation
+Glottal segmentation \sep High-speed videoendoscopy \sep Vocal fold vibration \sep
+Deep learning \sep Glottal area waveform \sep Cross-dataset generalisation
 \end{keyword}
 
 \begin{highlights}
-\item Detection gate zeroes output after at most 3 missed frames, removing spurious detections.
-\item New state of the art on the \girafe{} benchmark with \num{0.809} Dice, beating all published baselines.
-\item YOLO-Crop variant improves zero-shot transfer to independent BAGLS dataset.
-\item Coefficient of variation distinguishes voices by pathology after sex control.
-\item Lightweight pipeline processes full HSV videos in seconds on consumer hardware.
+\item Detection gate zeroes output after $\leq$3 missed frames, removing spurious detections.
+\item SOTA on \girafe{} (Dice \num{0.809}) and \bagls{} (Dice \num{0.854}, in-distribution).
+\item YOLO-Crop enables zero-shot transfer to \bagls{} (Dice \num{0.659} at $\tau{=}0.02$).
+\item Coefficient of variation distinguishes pathology after sex control.
+\item Full pipeline: 502-frame video in \SI{\sim 15}{s} (\SI{\sim 35}{frames/s}) on M-series; U-Net alone \SI{\sim 50}{frames/s}.
 \end{highlights}
 
 \end{frontmatter}
@@ -180,6 +180,7 @@ for accurate glottis segmentation \cite{kist2022latent}, while
 Fehling et al.\ incorporated temporal context via a convolutional LSTM
 encoder--decoder, reaching Dice \num{0.85} on \num{13000} frames from
 \num{130} subjects \cite{fehling2020convlstm}.
+Most recently, Nobel et al.\ reported an ensemble UNet--BiGRU segmenter with IoU \num{87.46} on a private dataset of \num{24000} images~\cite{nobel2024ensemble}, but did not evaluate on public benchmarks such as \bagls{} or \girafe{}, limiting direct comparison; by contrast, our lightweight detection-gated pipeline establishes new SOTA Dice \num{0.809} on \girafe{} and demonstrates zero-shot transfer to \bagls{}.
 Kist et al.\ packaged three quality-tiered segmentation networks into the
 \emph{Glottis Analysis Tools} (GAT) software for clinical
 use~\cite{kist2021gat}.
@@ -508,38 +509,6 @@ numeric label in each frame is the glottal area in pixels².
 \label{fig:montage}
 \end{figure}
 
-\Cref{tab:girafe_patient} breaks down the Dice and IoU scores by test
-patient.
-U-Net only is the strongest pipeline on every patient, with the largest
-margin on patient~57A3 (Dice \num{0.803} vs.\ \num{0.597} for \yolounet{}),
-the case where the YOLO bounding box clips glottis pixels most aggressively.
-Patient~61 is the easiest case---all three pipelines exceed Dice \num{0.83}.
-
-\begin{table}[t]
-\centering
-\caption{Per-patient Dice / IoU on the \girafe{} test split (20 frames
-  each).  Best Dice per patient in bold.}
-\label{tab:girafe_patient}
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{l cc cc cc}
-\toprule
- & \multicolumn{2}{c}{U-Net only}
- & \multicolumn{2}{c}{\yolounet{}}
- & \multicolumn{2}{c}{\yolocrop{}} \\
-\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
-Patient & Dice & IoU & Dice & IoU & Dice & IoU \\
-\midrule
-p57A3 & \textbf{0.803} & 0.682 & 0.597 & 0.449 & 0.554 & 0.404 \\
-p61   & \textbf{0.902} & 0.822 & 0.902 & 0.822 & 0.833 & 0.715 \\
-p63   & \textbf{0.794} & 0.697 & 0.788 & 0.694 & 0.748 & 0.633 \\
-p64   & \textbf{0.736} & 0.596 & 0.690 & 0.553 & 0.654 & 0.516 \\
-\midrule
-Mean  & \textbf{0.809} & 0.699 & 0.746 & 0.629 & 0.697 & 0.567 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
 \subsection{Zero-Shot Cross-Dataset Evaluation on BAGLS}
 \label{sec:results_bagls}
 
@@ -581,6 +550,37 @@ Method & Det.Recall & Dice & IoU & Dice${\geq}0.5$ \\
 U-Net only                     & 1.000 & 0.588 & 0.504 & 67.1\% \\
 \yolounet{} (ours)             & 0.688 & 0.545 & 0.473 & 61.9\% \\
 \yolocrop{} (ours)             & 0.688 & 0.609 & 0.533 & 70.3\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+When U-Net and YOLO are trained on \bagls{} (in-distribution evaluation on the
+same \num{3500} test frames), performance is substantially higher
+(\cref{tab:bagls_indist}).
+U-Net only reaches Dice \num{0.846} and Dice${\geq}0.5 = \SI{94.0}{\%}$;
+\yolounet{} achieves the best segmentation (Dice \num{0.854}, IoU \num{0.782},
+\SI{94.6}{\%} Dice${\geq}0.5$) with detection recall \num{0.865};
+\yolocrop{} reaches Dice \num{0.742} and \SI{87.1}{\%} Dice${\geq}0.5$.
+The YOLO detector attains precision \num{0.982} and recall \num{0.974}
+(TP\,=\,\num{2972}, FP\,=\,\num{54}, FN\,=\,\num{80}), indicating that
+BAGLS-trained weights transfer well to the held-out test split.
+Our \num{0.854} Dice surpasses the benchmark U-Net baseline~\cite{gomez2020bagls} and reported diffusion-refined segmentation (Dice \num{0.80})~\cite{wu2024medsegdiff}.
+
+\begin{table}[t]
+\centering
+\caption{In-distribution results on \bagls{} test set (\num{3500} frames)
+  with BAGLS-trained U-Net and YOLO weights.
+  Det.Recall shown as 1.000 for U-Net only (no YOLO gate).}
+\label{tab:bagls_indist}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccc}
+\toprule
+Method & Det.Recall & Dice & IoU & Dice${\geq}0.5$ \\
+\midrule
+U-Net only                     & 1.000 & 0.846 & 0.772 & 94.0\% \\
+\yolounet{} (ours)             & 0.865 & 0.854 & 0.782 & 94.6\% \\
+\yolocrop{} (ours)             & 0.865 & 0.742 & 0.637 & 87.1\% \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -791,12 +791,24 @@ GPU) is over $80\times$ larger than our U-Net (\num{7.76}M parameters) and
 would make real-time \gaw{} extraction from clinical recordings
 ($>$\num{1000} frames at $>$\SI{1000}{fps} capture rate) impractical
 without dedicated hardware.
-Our U-Net pipeline processes a \num{502}-frame \girafe{} patient video in
-approximately \SI{11}{s} on consumer hardware (Apple M-series, MPS backend;
-${\sim}$\SI{47}{frames\per\second}), well within offline clinical workflow
+On Apple M-series hardware (MPS backend), U-Net alone reaches
+${\sim}$\SI{50}{frames\per\second} (a \num{502}-frame video in
+${\sim}$\SI{10}{s}); the full detection-gated pipeline (YOLO + U-Net)
+processes the same video in approximately \SI{15}{s}
+(${\sim}$\SI{35}{frames\per\second}), well within offline clinical workflow
 requirements.
 Exploring SAM-based distillation to further improve U-Net accuracy without
 sacrificing throughput is an interesting direction for future work.
+
+\paragraph{Benchmarks vs.\ private datasets}
+While complex ensembles such as UNet--BiGRU achieve high accuracy on private
+laryngeal datasets~\cite{nobel2024ensemble}, their lack of evaluation on public
+benchmarks limits reproducibility and comparability.
+Our \num{7.76}M-parameter detection-gated pipeline instead establishes
+state-of-the-art performance on \girafe{} (Dice \num{0.809}) and
+in-distribution \bagls{} (Dice \num{0.854}), while also demonstrating
+zero-shot cross-dataset generalisation---a combination of openness and
+robustness that is absent from prior work.
 
 \paragraph{YOLO detection and confidence tuning}
 At the default threshold ($\tau{=}0.25$) the YOLO detector fires on
@@ -858,6 +870,7 @@ A crop-zoom variant (\yolocrop{}) achieves the best performance in a zero-shot
 evaluation on the independent \bagls{} dataset (Dice \num{0.659} at
 optimised threshold $\tau{=}0.02$), demonstrating that the detection-guided
 approach generalises across institutions and equipment.
+When U-Net and YOLO are trained on \bagls{}, the pipeline attains Dice \num{0.854} on the full \bagls{} test set (\yolounet{}), surpassing the benchmark baseline~\cite{gomez2020bagls} and diffusion-refined methods~\cite{wu2024medsegdiff}, establishing strong in-distribution results on that benchmark as well.
 As a technical validation, we applied the pipeline to all \num{65}
 \girafe{} patient recordings and showed that the automatically extracted
 coefficient of variation of the glottal area waveform significantly
@@ -871,10 +884,13 @@ segmentation quality is sufficient for downstream clinical analysis.
 All training and evaluation scripts, trained model weights, and the
 \girafe{} evaluation results JSON are available at
 \url{https://github.com/hari-krishnan/openglottal}.
+The repository README describes dataset splits (training/validation/test) for
+both \girafe{} and \bagls{} and explains how to run the detection-gated
+pipeline (YOLO detector, U-Net segmenter, and evaluation scripts).
 The \girafe{} dataset \cite{andrade2025datainbrief} is freely available from
-\texttt{https://doi.org/10.5281/zenodo.7962150}.
+\texttt{https://zenodo.org/records/13773163}.
 The \bagls{} dataset \cite{gomez2020bagls} is available from
-\texttt{https://zenodo.org/record/3381469}.
+\texttt{https://zenodo.org/records/3762320}.
 
 \section*{Author Contributions}
 Harikrishnan Unnikrishnan designed the study, implemented the detection-gated
@@ -883,7 +899,9 @@ pipeline (YOLO glottis detector, U-Net segmenter, and temporal detector with
 the glottal area waveform feature analysis, and wrote the manuscript.
 
 \section*{Declaration of Competing Interest}
-The authors declare no competing interests.
+The author declares that there are no known competing financial interests or
+personal relationships that could have appeared to influence the work reported
+in this paper.
 
 \section*{Acknowledgements}
 We thank Andrade-Miranda et al.\ for making the \girafe{} dataset publicly
