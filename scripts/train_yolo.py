@@ -16,6 +16,21 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+# Workaround: matplotlib font_manager can raise KeyError('_items') on macOS with Python 3.14
+# when Ultralytics checks fonts for plotting. Patch to avoid crash.
+try:
+    import matplotlib.font_manager as _fm
+    _orig_get_macos_fonts = getattr(_fm, "_get_macos_fonts", None)
+    if _orig_get_macos_fonts is not None:
+        def _safe_get_macos_fonts():
+            try:
+                return _orig_get_macos_fonts()
+            except KeyError:
+                return []
+        _fm._get_macos_fonts = _safe_get_macos_fonts
+except Exception:
+    pass
+
 from ultralytics import YOLO
 
 from openglottal.data import build_yolo_dataset
@@ -41,6 +56,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--subset-frac", type=float, default=None,
                    help="Use only this fraction of train/val (e.g. 0.1 for 1/10). Default: use all.")
     p.add_argument("--force-rebuild", action="store_true")
+    p.add_argument("--resume", default=None,
+                   help="Resume: load YOLO from this checkpoint (e.g. outputs/yolo/exp/weights/last.pt) and continue training.")
+    p.add_argument("--device", default=None,
+                   help="Device for training (e.g. mps, cuda, cpu). Default: auto.")
     return p.parse_args()
 
 
@@ -85,8 +104,10 @@ def main() -> None:
         mask_suffix=args.label_suffix,
     )
 
-    model = YOLO("yolov8n.pt")
-    results = model.train(
+    model = YOLO(args.resume if args.resume else "yolov8n.pt")
+    if args.resume:
+        print(f"Resuming from {args.resume}", flush=True)
+    train_kw = dict(
         data=str(yaml_path),
         epochs=args.epochs,
         imgsz=args.imgsz,
@@ -95,6 +116,9 @@ def main() -> None:
         name=name,
         exist_ok=True,
     )
+    if args.device is not None:
+        train_kw["device"] = args.device
+    results = model.train(**train_kw)
 
     best = Path(results.save_dir) / "weights" / "best.pt"
     print(f"\nTraining complete. Best weights: {best}")

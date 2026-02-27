@@ -4,10 +4,24 @@ from __future__ import annotations
 
 import contextlib
 import os
+from pathlib import Path
 
 import cv2
 import numpy as np
 import torch
+
+
+# ── Weight path resolution ───────────────────────────────────────────────────
+
+def resolve_weights_path(path: str | Path) -> Path:
+    """Return path if it exists; else try weights/<basename> for legacy / in-progress runs."""
+    p = Path(path)
+    if p.exists():
+        return p
+    legacy = Path("weights") / p.name
+    if legacy.exists():
+        return legacy
+    return p
 
 
 # ── Frame I/O ────────────────────────────────────────────────────────────────
@@ -45,6 +59,131 @@ def _resize_to(frame: np.ndarray, w: int, h: int) -> np.ndarray:
     if frame.shape[1] == w and frame.shape[0] == h:
         return frame
     return cv2.resize(frame, (w, h), interpolation=cv2.INTER_LINEAR)
+
+
+# ── Letterbox (aspect-ratio preserving crop resize) ───────────────────────────
+
+def letterbox(
+    img: np.ndarray,
+    size: int = 256,
+    value: int = 0,
+) -> np.ndarray:
+    """
+    Scale img so its longest side = ``size``, then pad symmetrically to
+    produce a square ``size``×``size`` array. Preserves aspect ratio.
+
+    Works for 2-D (grayscale/mask) and 3-D (BGR) arrays.
+    """
+    h, w = img.shape[:2]
+    scale = size / max(h, w)
+    new_h, new_w = int(round(h * scale)), int(round(w * scale))
+    interp = cv2.INTER_LINEAR if img.ndim == 3 else cv2.INTER_NEAREST
+    resized = cv2.resize(img, (new_w, new_h), interpolation=interp)
+    pad_h = size - new_h
+    pad_w = size - new_w
+    top, bottom = pad_h // 2, pad_h - pad_h // 2
+    left, right = pad_w // 2, pad_w - pad_w // 2
+    if img.ndim == 3:
+        return cv2.copyMakeBorder(
+            resized, top, bottom, left, right,
+            cv2.BORDER_CONSTANT, value=(value, value, value),
+        )
+    return cv2.copyMakeBorder(
+        resized, top, bottom, left, right,
+        cv2.BORDER_CONSTANT, value=value,
+    )
+
+
+def letterbox_with_info(
+    img: np.ndarray,
+    size: int = 256,
+    value: int = 0,
+) -> tuple[np.ndarray, int, int, int, int]:
+    """
+    Same as ``letterbox`` but also return geometry for unletterbox/resize-back.
+
+    Returns
+    -------
+    letterboxed : np.ndarray
+        Padded square image.
+    pad_top, pad_left : int
+        Top/left padding (content region starts here).
+    content_h, content_w : int
+        Height/width of the scaled content inside the square.
+    """
+    h, w = img.shape[:2]
+    scale = size / max(h, w)
+    new_h, new_w = int(round(h * scale)), int(round(w * scale))
+    interp = cv2.INTER_LINEAR if img.ndim == 3 else cv2.INTER_NEAREST
+    resized = cv2.resize(img, (new_w, new_h), interpolation=interp)
+    pad_h = size - new_h
+    pad_w = size - new_w
+    top, bottom = pad_h // 2, pad_h - pad_h // 2
+    left, right = pad_w // 2, pad_w - pad_w // 2
+    if img.ndim == 3:
+        out = cv2.copyMakeBorder(
+            resized, top, bottom, left, right,
+            cv2.BORDER_CONSTANT, value=(value, value, value),
+        )
+    else:
+        out = cv2.copyMakeBorder(
+            resized, top, bottom, left, right,
+            cv2.BORDER_CONSTANT, value=value,
+        )
+    return out, top, left, new_h, new_w
+
+
+def letterbox_apply_geometry(
+    img: np.ndarray,
+    size: int,
+    pad_top: int,
+    pad_left: int,
+    content_h: int,
+    content_w: int,
+    value: int = 0,
+    interp: int | None = None,
+) -> np.ndarray:
+    """
+    Resize and pad ``img`` to (size, size) using the same geometry as a
+    previous ``letterbox_with_info`` call. Use for masks (interp=INTER_NEAREST).
+    """
+    if interp is None:
+        interp = cv2.INTER_NEAREST if img.ndim == 2 else cv2.INTER_LINEAR
+    resized = cv2.resize(img, (content_w, content_h), interpolation=interp)
+    pad_bottom = size - pad_top - content_h
+    pad_right = size - pad_left - content_w
+    if img.ndim == 3:
+        return cv2.copyMakeBorder(
+            resized, pad_top, pad_bottom, pad_left, pad_right,
+            cv2.BORDER_CONSTANT, value=(value, value, value),
+        )
+    return cv2.copyMakeBorder(
+        resized, pad_top, pad_bottom, pad_left, pad_right,
+        cv2.BORDER_CONSTANT, value=value,
+    )
+
+
+def unletterbox(
+    letterboxed: np.ndarray,
+    pad_top: int,
+    pad_left: int,
+    content_h: int,
+    content_w: int,
+    target_h: int,
+    target_w: int,
+    interp: int = cv2.INTER_NEAREST,
+) -> np.ndarray:
+    """
+    Crop the content region from a letterboxed image and resize to target size.
+    Use to project a model output mask back to original crop dimensions.
+    """
+    crop = letterboxed[
+        pad_top : pad_top + content_h,
+        pad_left : pad_left + content_w,
+    ]
+    if (content_h, content_w) == (target_h, target_w):
+        return crop
+    return cv2.resize(crop, (target_w, target_h), interpolation=interp)
 
 
 # ── Segmentation metrics ─────────────────────────────────────────────────────

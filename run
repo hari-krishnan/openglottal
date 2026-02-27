@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Run a Python command using the repo's .venv. Usage: ./run scripts/train_unet.py ...
+set -e
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+if [[ ! -x "$ROOT/.venv/bin/python" ]]; then
+  echo "Create the venv first: python3 -m venv .venv && source .venv/bin/activate && pip install -e \".[dev]\""
+  exit 1
+fi
+exec "$ROOT/.venv/bin/python" "$@"

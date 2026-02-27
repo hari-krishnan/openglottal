@@ -26,20 +26,28 @@ containing all scalar kinematic features.
 
 Examples
 --------
-# AVI directory
+# AVI directory (full-frame U-Net)
 python scripts/infer.py \\
     --input  GIRAFE/Raw_Data/ \\
-    --yolo-weights glottal_detector/yolo_best.pt \\
-    --unet-weights glottal_detector/unet_glottis_v2.pt \\
+    --yolo-weights outputs/openglottal_yolo.pt \\
+    --unet-weights outputs/openglottal_unet.pt \\
     --pipeline unet \\
+    --output-dir results/
+
+# Crop U-Net (e.g. model from Kaggle)
+python scripts/infer.py \\
+    --input  GIRAFE/Raw_Data/ \\
+    --yolo-weights outputs/openglottal_yolo.pt \\
+    --crop-weights outputs/openglottal_unet_crop.pt \\
+    --pipeline yolo-crop+unet \\
     --output-dir results/
 
 # Image sequence directory
 python scripts/infer.py \\
     --input  my_frames/ \\
     --mode   images \\
-    --yolo-weights glottal_detector/yolo_best.pt \\
-    --unet-weights glottal_detector/unet_glottis_v2.pt \\
+    --yolo-weights outputs/openglottal_yolo.pt \\
+    --unet-weights outputs/openglottal_unet.pt \\
     --pipeline unet \\
     --output-dir results/
 """
@@ -65,7 +73,13 @@ from openglottal.features import (
     YGVFT_PARAMS, YGVFT_INIT,
     _kinematic_features,
 )
-from openglottal.utils import unet_segment_frame, _silence_stderr
+from openglottal.utils import (
+    unet_segment_frame,
+    letterbox_with_info,
+    unletterbox,
+    _silence_stderr,
+    resolve_weights_path,
+)
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
 FEATURE_COLS = ["area_mean", "area_std", "area_range",
@@ -205,7 +219,35 @@ def _run_pipeline(
             area_wave.append(area)
             annotated.append(_draw_overlay(frm, mask_full, None, area, overlay_style))
 
-    else:  # unet (YOLO+UNet: detection-gated; U-Net only when YOLO detects)
+    elif pipeline == "yolo-crop+unet":
+        # YOLO bbox → crop → letterbox 256×256 → crop U-Net → unletterbox → paste
+        crop_size = 256
+        for frm in frames_bgr:
+            gray = cv2.cvtColor(frm, cv2.COLOR_BGR2GRAY)
+            box = detector.detect(frm)
+            area = 0.0
+            mask_display = None
+            if box is not None and model is not None:
+                x1, y1, x2, y2 = box
+                crop = gray[y1:y2, x1:x2]
+                if crop.size > 0:
+                    crop_h, crop_w = crop.shape[:2]
+                    boxed, pad_t, pad_l, content_h, content_w = letterbox_with_info(
+                        crop, crop_size, value=0
+                    )
+                    mask_cs = unet_segment_frame(boxed, model, device)
+                    mask_orig = unletterbox(
+                        mask_cs, pad_t, pad_l, content_h, content_w,
+                        crop_h, crop_w, interp=cv2.INTER_NEAREST,
+                    )
+                    full = np.zeros_like(gray)
+                    full[y1:y2, x1:x2] = mask_orig
+                    mask_display = full
+                    area = float(np.sum(mask_orig > 0))
+            area_wave.append(area)
+            annotated.append(_draw_overlay(frm, mask_display, box, area, overlay_style))
+
+    else:  # unet (YOLO+full-frame U-Net: detection-gated; U-Net on full frame)
         for frm in frames_bgr:
             gray = cv2.cvtColor(frm, cv2.COLOR_BGR2GRAY)
             box = detector.detect(frm)
@@ -281,8 +323,11 @@ def parse_args() -> argparse.Namespace:
                    help="'avi': one video per file; 'images': whole dir = one sequence.")
     p.add_argument("--yolo-weights", default=None,
                    help="Required for pipelines: vft, guided-vft, unet. Not used for unet-only.")
-    p.add_argument("--unet-weights", default=None)
-    p.add_argument("--pipeline", choices=["vft", "guided-vft", "unet", "unet-only"], default="unet")
+    p.add_argument("--unet-weights", default=None,
+                   help="Full-frame U-Net weights (for unet, unet-only).")
+    p.add_argument("--crop-weights", default=None,
+                   help="Crop U-Net weights (for yolo-crop+unet). Use with --pipeline yolo-crop+unet.")
+    p.add_argument("--pipeline", choices=["vft", "guided-vft", "unet", "unet-only", "yolo-crop+unet"], default="unet")
     p.add_argument("--output-dir", default="results")
     p.add_argument("--fps", type=float, default=None,
                    help="Output FPS (images mode only; AVI mode reads FPS from file).")
@@ -315,24 +360,37 @@ def main() -> None:
     if args.pipeline in ("unet", "unet-only") and not args.unet_weights:
         print("--unet-weights is required for the unet and unet-only pipelines.", file=sys.stderr)
         sys.exit(1)
-    if args.pipeline in ("vft", "guided-vft", "unet") and not args.yolo_weights:
-        print("--yolo-weights is required for the vft, guided-vft, and unet pipelines.", file=sys.stderr)
+    if args.pipeline == "yolo-crop+unet" and not args.crop_weights:
+        print("--crop-weights is required for the yolo-crop+unet pipeline.", file=sys.stderr)
+        sys.exit(1)
+    if args.pipeline in ("vft", "guided-vft", "unet", "yolo-crop+unet") and not args.yolo_weights:
+        print("--yolo-weights is required for the vft, guided-vft, unet, and yolo-crop+unet pipelines.", file=sys.stderr)
         sys.exit(1)
 
     # ── Load models ───────────────────────────────────────────────────────────
     device = torch.device(args.device)
+    yolo_path = resolve_weights_path(args.yolo_weights) if args.yolo_weights else None
+    unet_path = resolve_weights_path(args.unet_weights) if args.unet_weights else None
+    crop_path = resolve_weights_path(args.crop_weights) if args.crop_weights else None
     detector: TemporalDetector | None = None
-    if args.yolo_weights:
+    if yolo_path is not None:
         detector = TemporalDetector(
-            args.yolo_weights,
+            str(yolo_path),
             max_hold_frames=args.max_hold_frames,
         )
 
     model = None
-    if args.unet_weights:
+    if args.pipeline == "yolo-crop+unet" and crop_path is not None:
         model = UNet(1, 1, (32, 64, 128, 256)).to(device)
         model.load_state_dict(
-            torch.load(args.unet_weights, map_location=device, weights_only=True)
+            torch.load(crop_path, map_location=device, weights_only=True)
+        )
+        model.eval()
+        print(f"Loaded crop U-Net: {crop_path}")
+    elif unet_path is not None:
+        model = UNet(1, 1, (32, 64, 128, 256)).to(device)
+        model.load_state_dict(
+            torch.load(unet_path, map_location=device, weights_only=True)
         )
         model.eval()
 

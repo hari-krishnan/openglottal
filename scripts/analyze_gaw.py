@@ -21,8 +21,8 @@ Usage
 -----
 python scripts/analyze_gaw.py \\
     --raw-data-dir  GIRAFE/Raw_Data \\
-    --yolo-weights  runs/detect/glottal_detector/yolov8n_girafe/weights/best.pt \\
-    --unet-weights  glottal_detector/unet_glottis_v2.pt \\
+    --yolo-weights  outputs/yolo/girafe/weights/best.pt \\
+    --unet-weights  outputs/openglottal_unet.pt \\
     --device        mps \\
     --output-dir    results/gaw
 """
@@ -42,7 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from openglottal.models import UNet, TemporalDetector
 from openglottal.features import _kinematic_features
-from openglottal.utils import unet_segment_frame, _silence_stderr
+from openglottal.utils import unet_segment_frame, _silence_stderr, resolve_weights_path
 
 # Collapse rare conditions into broad groups
 HEALTHY_LABEL = "Healthy"
@@ -128,15 +128,17 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Load models ───────────────────────────────────────────────────────────
-    detector = TemporalDetector(args.yolo_weights)
+    yolo_path = resolve_weights_path(args.yolo_weights)
+    unet_path = resolve_weights_path(args.unet_weights)
+    detector = TemporalDetector(str(yolo_path))
 
     unet = UNet(1, 1, (32, 64, 128, 256)).to(device)
     unet.load_state_dict(
-        torch.load(args.unet_weights, map_location=device, weights_only=True)
+        torch.load(unet_path, map_location=device, weights_only=True)
     )
     unet.eval()
-    print(f"Loaded YOLO : {args.yolo_weights}")
-    print(f"Loaded UNet : {args.unet_weights}\n")
+    print(f"Loaded YOLO : {yolo_path}")
+    print(f"Loaded UNet : {unet_path}\n")
 
     # ── Process each patient ──────────────────────────────────────────────────
     records: list[dict] = []

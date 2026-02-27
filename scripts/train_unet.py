@@ -69,6 +69,8 @@ def parse_args() -> argparse.Namespace:
                    help="TensorBoard log directory. Logs go to <log-dir>/<run_name>.")
     p.add_argument("--patience", type=int, default=0,
                    help="Early stopping: stop if val loss does not improve for this many epochs (0 = disabled). e.g. 5")
+    p.add_argument("--resume", default=None,
+                   help="Resume: load model weights from this checkpoint and continue training (epoch 1, fresh optimizer).")
     return p.parse_args()
 
 
@@ -142,6 +144,11 @@ def main() -> None:
     val_ldr = DataLoader(val_ds, batch_size=args.batch, shuffle=False, num_workers=0)
 
     model = UNet(1, 1, tuple(args.features)).to(device)
+    if args.resume:
+        ckpt = torch.load(args.resume, map_location=device, weights_only=True)
+        state = ckpt.get("model") or ckpt.get("state_dict") or ckpt
+        model.load_state_dict(state, strict=True)
+        print(f"Resumed from {args.resume}", flush=True)
     n_params = sum(p.numel() for p in model.parameters())
     print(f"U-Net — {n_params / 1e6:.2f}M parameters", flush=True)
 

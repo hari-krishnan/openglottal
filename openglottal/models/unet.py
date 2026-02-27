@@ -12,6 +12,8 @@ import torch.nn.functional as F
 import torchvision.transforms.functional as TF
 from torch.utils.data import Dataset
 
+from openglottal.utils import letterbox_with_info, letterbox_apply_geometry
+
 
 class DoubleConv(nn.Module):
     """Two consecutive Conv → BN → ReLU blocks."""
@@ -88,19 +90,26 @@ class UNet(nn.Module):
 
 class GlottisDataset(Dataset):
     """
-    Grayscale 256×256 GIRAFE frames + binary GT masks.
+    Grayscale frames + binary GT masks, letterboxed to 256×256 when not already.
+
+    Non-256×256 images (e.g. BAGLS) are letterboxed to 256×256 to preserve
+    aspect ratio. GIRAFE 256×256 frames pass through unchanged.
 
     Parameters
     ----------
     fnames:
-        List of filename stems (e.g. from ``training.json``).
+        List of image filenames (e.g. from ``training.json``).
     img_dir:
         Directory containing PNG frames.
     lbl_dir:
-        Directory containing PNG masks.
+        Directory containing PNG masks (or same as img_dir for BAGLS).
+    label_suffix:
+        If set (e.g. ``"_seg"`` for BAGLS), mask path is ``stem + label_suffix + ".png"``.
     augment:
         Whether to apply random augmentation at load time.
     """
+
+    SIZE = 256
 
     def __init__(
         self,
@@ -108,19 +117,33 @@ class GlottisDataset(Dataset):
         img_dir: str | Path,
         lbl_dir: str | Path,
         augment: bool = False,
+        label_suffix: str = "",
     ) -> None:
         self.fnames = fnames
         self.img_dir = Path(img_dir)
         self.lbl_dir = Path(lbl_dir)
         self.augment = augment
+        self.label_suffix = label_suffix
 
     def __len__(self) -> int:
         return len(self.fnames)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         fname = self.fnames[idx]
+        stem = Path(fname).stem
+        lbl_name = f"{stem}{self.label_suffix}.png" if self.label_suffix else fname
         img = cv2.imread(str(self.img_dir / fname), cv2.IMREAD_GRAYSCALE)
-        msk = cv2.imread(str(self.lbl_dir / fname), cv2.IMREAD_GRAYSCALE)
+        msk = cv2.imread(str(self.lbl_dir / lbl_name), cv2.IMREAD_GRAYSCALE)
+        h, w = img.shape[:2]
+        if (h, w) != (self.SIZE, self.SIZE):
+            img_boxed, pad_t, pad_l, content_h, content_w = letterbox_with_info(
+                img, self.SIZE, value=0
+            )
+            msk_boxed = letterbox_apply_geometry(
+                msk, self.SIZE, pad_t, pad_l, content_h, content_w,
+                value=0, interp=cv2.INTER_NEAREST,
+            )
+            img, msk = img_boxed, msk_boxed
         img = torch.from_numpy(img.astype("float32") / 255.0).unsqueeze(0)  # (1,H,W)
         msk = torch.from_numpy((msk > 0).astype("float32")).unsqueeze(0)    # (1,H,W)
 
