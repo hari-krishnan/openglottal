@@ -13,7 +13,7 @@
 % High-resolution figures for publication (Figure 1, etc.)
 \pdfimageresolution=300
 
-% ── journal / short-hand macros ──────────────────────────────────────────────
+% ── journal / short-`hand macros ──────────────────────────────────────────────
 \newcommand{\girafe}{\textbf{GIRAFE}}
 \newcommand{\bagls}{\textbf{BAGLS}}
 \newcommand{\yolounet}{YOLO+UNet}
@@ -392,13 +392,17 @@ checkpoint.
 \IfFileExists{pipeline.png}{%
   \includegraphics[width=\linewidth,keepaspectratio]{pipeline.png}%
 }{%
-  \fbox{\parbox{0.85\linewidth}{\centering\vspace{1.5cm}%
-    \textbf{Figure 1:} Overview of the three main inference pipelines.\\
-    Export \texttt{fig1\_pipeline.mmd} from Mermaid Live (mermaid.live) at high resolution, or add \texttt{pipeline2.png} here.\\
-    Check spelling: ``YOLO detector'' and ``Gate'' (not detectir/Gane).\vspace{1.5cm}}}
+  \IfFileExists{pipeline.pdf}{%
+    \includegraphics[width=\linewidth,keepaspectratio]{pipeline.pdf}%
+  }{%
+    \fbox{\parbox{0.85\linewidth}{\centering\vspace{1.5cm}%
+      \textbf{Figure 1:} Overview of the three main inference pipelines.\\
+      Run \texttt{npx -y @mermaid-js/mermaid-cli -i fig1\_pipeline.mmd -o pipeline.png -w 1000 -s 2 -b white} in \texttt{paper/}.\\
+      Check spelling: ``YOLO detector'' and ``Gate'' (not detectir/Gane).\vspace{1.5cm}}}
+  }%
 }
 \caption{Overview of the three main inference pipelines.
-  Input (left) is the \num{256}\(\times\)\num{256} grayscale frame; each pipeline
+  Input (left) is the grayscale frame; each pipeline
   yields a segmentation mask (right).
   Solid arrows denote data flow; the gate symbol indicates that the output is
   set to zero when the detector does not fire (or after at most
