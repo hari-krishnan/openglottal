@@ -4,6 +4,8 @@
 
 Open-source toolkit for automated glottal area segmentation from high-speed videoendoscopy (HSV).
 
+**Author:** Harikrishnan Unnikrishnan (hari@orchard-robotics.com)
+
 OpenGlottal combines a YOLOv8 glottis detector, a U-Net pixel-level segmenter, and a temporal vocal fold tracker into a single, reproducible inference and training pipeline — trained and evaluated on the [GIRAFE dataset](https://zenodo.org/records/13773163) ([dataset paper](https://doi.org/10.1016/j.dib.2025.111376)) and [BAGLS](https://zenodo.org/records/3762320) ([Scientific Data, 2020](https://doi.org/10.1038/s41597-020-0526-3)).
 
 ---
@@ -113,14 +115,14 @@ Results are printed alongside the published GIRAFE baselines for direct comparis
 
 | Method | Det.Recall | Dice | IoU | Dice≥0.5 |
 |--------|-----------|------|-----|----------|
-| InP (GIRAFE paper) | n/a | 0.713 | n/a | n/a |
-| U-Net (GIRAFE paper) | n/a | 0.643 | n/a | n/a |
-| SwinUNetV2 (paper) | n/a | 0.621 | n/a | n/a |
-| **U-Net only** | n/a | **0.809** | **0.699** | **96.2%** |
-| YOLO+OTSU | 0.95 | 0.230 | 0.136 | 2.5% |
-| YOLO+UNet | 0.95 | 0.746 | 0.629 | 83.8% |
-| YOLO-Crop+UNet† | 0.95 | 0.697 | 0.567 | 77.5% |
-| YOLO+Motion | 0.95 | 0.349 | 0.234 | 23.5% |
+| InP (GIRAFE paper) | n/a | 0.71 | n/a | n/a |
+| U-Net (GIRAFE paper) | n/a | 0.64 | n/a | n/a |
+| SwinUNetV2 (paper) | n/a | 0.62 | n/a | n/a |
+| **U-Net only** | n/a | **0.81** | **0.70** | **96.2%** |
+| OTSU (baseline) | 0.95 | 0.22 | 0.13 | 2.5% |
+| YOLO+UNet | 0.95 | 0.75 | 0.64 | 88.8% |
+| YOLO-Crop+UNet† | 0.95 | 0.70 | 0.57 | 77.5% |
+| Motion (baseline) | 0.95 | 0.27 | 0.17 | 9.7% |
 
 - **Det.Recall** — fraction of frames where YOLO detected a glottis
 - **Dice** — mean Dice coefficient across all test frames (higher is better)
@@ -145,13 +147,13 @@ python scripts/eval_bagls.py \
 
 | Method | Det.Recall | Dice | IoU | Dice≥0.5 |
 |--------|-----------|------|-----|----------|
-| U-Net only | 1.000 | 0.588 | 0.504 | 67.1% |
-| YOLO+UNet | 0.688 | 0.545 | 0.473 | 61.9% |
-| **YOLO-Crop+UNet** | **0.688** | **0.609** | **0.533** | **70.3%** |
+| U-Net only | 1.00 | 0.59 | 0.50 | 67.1% |
+| YOLO+UNet | 0.69 | 0.55 | 0.47 | 61.9% |
+| **YOLO-Crop+UNet** | **0.69** | **0.61** | **0.53** | **70.3%** |
 
-*(Table at default confidence $\tau=0.25$. With `--conf 0.02`, YOLO-Crop+UNet reaches Dice 0.659 and 85.9% recall; see paper and `sweep_bagls_conf.py`.)*
+*(Table at default confidence $\tau=0.25$. With `--conf 0.02`, YOLO-Crop+UNet reaches Dice 0.64 and Dice≥0.5 76.4%; see paper and `sweep_bagls_conf.py`.)*
 
-YOLO-Crop+UNet is the strongest pipeline on the unseen BAGLS data (+2.1pp Dice, +3.2pp Dice≥0.5 over U-Net alone), despite YOLO only detecting on 68.8% of frames (domain shift from GIRAFE).  When YOLO does fire, cropping and re-scaling the region of interest gives U-Net higher effective resolution and cleaner context — benefits that generalise across datasets.
+YOLO-Crop+UNet is the strongest pipeline on the unseen BAGLS data (+2 pp Dice, +3.2 pp Dice≥0.5 over U-Net alone at default $\tau$; at $\tau=0.02$, +5 pp Dice and +9.3 pp Dice≥0.5), despite YOLO only detecting on 68.8% of frames (domain shift from GIRAFE).  When YOLO does fire, cropping and re-scaling the region of interest gives U-Net higher effective resolution and cleaner context — benefits that generalise across datasets.
 
 ### BAGLS in-distribution (BAGLS-trained models, 3 500 test frames)
 
@@ -170,9 +172,9 @@ On the 3 500-frame BAGLS test set this configuration achieves:
 
 | Method             | Det.Recall | Dice  | IoU   | Dice≥0.5 |
 |--------------------|-----------:|------:|------:|---------:|
-| **U-Net only**     | 1.000      | 0.846 | 0.772 | 94.0%    |
-| **YOLO+UNet**      | 0.865      | **0.854** | **0.782** | **94.6%** |
-| YOLO-Crop+UNet     | 0.865      | 0.742 | 0.637 | 87.1%    |
+| **U-Net only**     | 1.00       | 0.85  | 0.77  | 94.0%    |
+| **YOLO+UNet**      | 0.87       | **0.85**  | **0.78**  | **94.6%** |
+| YOLO-Crop+UNet     | 0.87       | 0.74  | 0.64  | 87.1%    |
 
 So BAGLS-trained YOLO+UNet sets a strong in-distribution baseline (Dice 0.854), while the zero-shot GIRAFE-trained YOLO-Crop+UNet remains the best cross-dataset configuration.
 
@@ -362,7 +364,20 @@ YOLO acts as a **detection gate**: when the endoscope moves away from the glotti
 
 ## Citation
 
-If you use OpenGlottal in your research, please cite the underlying work:
+If you use OpenGlottal in your research, please cite:
+
+```bibtex
+@article{unnikrishnan2025openglottal,
+  title   = {Detection-gated glottal segmentation with zero-shot cross-dataset
+             transfer and clinical feature extraction},
+  author  = {Unnikrishnan, Harikrishnan},
+  journal = {Computers in Biology and Medicine},
+  year    = {2025},
+  note    = {Submitted to Computers in Biology and Medicine}
+}
+```
+
+Related prior work on glottal kinematics and high-speed imaging:
 
 ```bibtex
 @article{patel2013invivo,
