@@ -176,7 +176,7 @@ On the 3 500-frame BAGLS test set this configuration achieves:
 | **YOLO+UNet**      | 0.87       | **0.85**  | **0.78**  | **94.6%** |
 | YOLO-Crop+UNet     | 0.87       | 0.74  | 0.64  | 87.1%    |
 
-So BAGLS-trained YOLO+UNet sets a strong in-distribution baseline (Dice 0.854), while the zero-shot GIRAFE-trained YOLO-Crop+UNet remains the best cross-dataset configuration.
+So BAGLS-trained YOLO+UNet sets a strong in-distribution baseline (Dice 0.85), while the zero-shot GIRAFE-trained YOLO-Crop+UNet remains the best cross-dataset configuration.
 
 ---
 
@@ -367,12 +367,12 @@ YOLO acts as a **detection gate**: when the endoscope moves away from the glotti
 If you use OpenGlottal in your research, please cite:
 
 ```bibtex
-@article{unnikrishnan2025openglottal,
+@article{unnikrishnan2026openglottal,
   title   = {Detection-gated glottal segmentation with zero-shot cross-dataset
              transfer and clinical feature extraction},
   author  = {Unnikrishnan, Harikrishnan},
   journal = {Computers in Biology and Medicine},
-  year    = {2025},
+  year    = {2026},
   note    = {Submitted to Computers in Biology and Medicine}
 }
 ```
