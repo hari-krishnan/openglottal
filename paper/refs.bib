@@ -1,4 +1,4 @@
-% ── Architecture references ───────────────────────────────────────────────────
+% -- Architecture references ------------------------------------------------------
 
 @inproceedings{ronneberger2015unet,
   author    = {Ronneberger, Olaf and Fischer, Philipp and Brox, Thomas},
@@ -23,9 +23,10 @@
 @inproceedings{he2017maskrcnn,
   author    = {He, Kaiming and Gkioxari, Georgia and Doll\'{a}r, Piotr and Girshick, Ross},
   title     = {Mask {R-CNN}},
-  booktitle = {IEEE International Conference on Computer Vision (ICCV)},
+  booktitle = {Proceedings of the IEEE International Conference on Computer Vision (ICCV)},
   pages     = {2980--2988},
   year      = {2017},
+  publisher = {IEEE},
   doi       = {10.1109/ICCV.2017.322},
 }
 
@@ -43,7 +44,7 @@
   doi       = {10.1007/978-3-031-25066-8_9},
 }
 
-% ── Foundation models ────────────────────────────────────────────────────────
+% -- Foundation models -----------------------------------------------------------
 
 @inproceedings{kirillov2023sam,
   author    = {Kirillov, Alexander and Mintun, Eric and Ravi, Nikhila
@@ -68,7 +69,7 @@
   doi       = {10.1038/s41467-024-44824-z},
 }
 
-% ── Optimiser and training references ────────────────────────────────────────
+% -- Optimiser and training references -------------------------------------------
 
 @inproceedings{loshchilov2019adamw,
   author    = {Loshchilov, Ilya and Hutter, Frank},
@@ -118,7 +119,7 @@
   doi       = {10.1109/TSMC.1979.4310076},
 }
 
-% ── Dataset references ───────────────────────────────────────────────────────
+% -- Dataset references ----------------------------------------------------------
 
 @article{andrade2025datainbrief,
   author    = {Andrade-Miranda, Gustavo and Hern\'{a}ndez-\'{A}lvarez, M.
@@ -150,7 +151,7 @@
   doi       = {10.1038/s41597-020-0526-3},
 }
 
-% ── Glottis segmentation methods ─────────────────────────────────────────────
+% -- Glottis segmentation methods -------------------------------------------------
 
 @article{kist2022latent,
   author    = {Kist, Andreas M. and Zilker, Julian and G\'{o}mez, Pablo
@@ -162,6 +163,22 @@
   pages     = {14292},
   year      = {2022},
   doi       = {10.1038/s41598-022-17764-1},
+}
+
+@article{dollinger2022,
+  author    = {D\"{o}llinger, Michael and Schraut, Tobias and Henrich, Luisa A.
+               and Chhetri, Dinesh and Echternach, Matthias and Johnson, Aaron M.
+               and Kunduk, Melda and Maryn, Youri and Patel, Rita R.
+               and Samlan, Robin and others},
+  title     = {Re-Training of Convolutional Neural Networks for Glottis
+               Segmentation in Endoscopic High-Speed Videos},
+  journal   = {Applied Sciences},
+  volume    = {12},
+  number    = {19},
+  pages     = {9791},
+  year      = {2022},
+  doi       = {10.3390/app12199791},
+  url       = {https://doi.org/10.3390/app12199791},
 }
 
 @article{fehling2020convlstm,
@@ -179,11 +196,20 @@
   doi       = {10.1371/journal.pone.0227791},
 }
 
-@misc{nobel2024ensemble,
-  author    = {Nobel, A. and colleagues},
-  title     = {Ensemble {UNet}-{BiGRU} Segmentation for Glottal Imaging},
+@article{nobel2024ensemble,
+  author    = {Nobel, S. M. Nuruzzaman and Swapno, S. M. Masfequier Rahman
+               and Islam, Md Rajibul and Safran, Mejdl and Alfarhood, Sultan
+               and Mridha, M. F.},
+  title     = {A machine learning approach for vocal fold segmentation and
+               disorder classification based on ensemble method},
+  journal   = {Scientific Reports},
+  volume    = {14},
   year      = {2024},
-  note      = {Private-dataset study (24k images) reporting IoU 87.46\%; no evaluation on public BAGLS or GIRAFE benchmarks.},
+  doi       = {10.1038/s41598-024-64987-5},
+  url       = {https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11758383/},
+  note      = {PMCID: PMC11758383; PMID: 38910146. Ensemble {UNet}-{BiGRU}
+               segmentation (IoU 87.46\%); no evaluation on public BAGLS or
+               GIRAFE benchmarks.},
 }
 
 @inproceedings{wu2024medsegdiff,
@@ -201,13 +227,20 @@
 }
 
 @article{kist2021gat,
-  author    = {Kist, Andreas M. and G\'{o}mez, Pablo
-               and Sch\"{u}tzenberger, Anne and D\"{o}llinger, Michael},
-  title     = {{Glottis Analysis Tools}: Open Tools for Laryngeal High-Speed
-               Videoendoscopy Analysis},
+  author    = {Kist, Andreas M. and G\'{o}mez, Pablo and Dubrovskiy, Denis
+               and Schlegel, Patrick and Kunduk, Melda and Echternach, Matthias
+               and Patel, Rita and Semmler, Marion and Bohr, Christopher
+               and D\"{u}rr, Stephan and Sch\"{u}tzenberger, Anne
+               and D\"{o}llinger, Michael},
+  title     = {A Deep Learning Enhanced Novel Software Tool for Laryngeal
+               Dynamics Analysis},
   journal   = {Journal of Speech, Language, and Hearing Research},
+  volume    = {64},
+  number    = {6},
+  pages     = {1889--1903},
   year      = {2021},
-  doi       = {10.1044/2021_JSLHR-21-00064},
+  doi       = {10.1044/2021_JSLHR-20-00498},
+  note      = {Epub 2021 May 17. PMID: 34000199.},
 }
 
 @article{andrade2015glottal,
@@ -223,7 +256,7 @@
   url       = {https://doi.org/10.1186/s12938-015-0096-3},
 }
 
-% ── Clinical / voice analysis references ─────────────────────────────────────
+% -- Clinical / voice analysis references ----------------------------------------
 
 @article{deliyski2008laryngoscope,
   author    = {Deliyski, Dimitar D.},
@@ -237,18 +270,6 @@
   doi       = {10.1159/000111802},
 }
 
-@article{patel2013invivo,
-  author    = {Patel, Rita R. and Dubrovskiy, Dima and Döllinger, Michael},
-  title     = {Characterizing Vibratory Kinematics in Children and Adults
-               with High-Speed Digital Imaging},
-  journal   = {Journal of Speech, Language, and Hearing Research},
-  volume    = {57},
-  number    = {2},
-  pages     = {S674--S686},
-  year      = {2014},
-  doi       = {10.1044/2014_JSLHR-S-12-0278},
-}
-
 @article{patel2015kinematic,
   author    = {Patel, Rita R. and Donohue, Kevin D.
                and Unnikrishnan, Harikrishnan and Kryscio, Richard J.},
@@ -260,19 +281,20 @@
   number    = {2},
   pages     = {227--240},
   year      = {2015},
+  doi       = {10.1044/2015_JSLHR-S-14-0242},
 }
 
-@article{patel2016effects,
+@article{patel2013laser,
   author    = {Patel, Rita R. and Donohue, Kevin D.
                and Lau, Daniel and Unnikrishnan, Harikrishnan},
   title     = {In Vivo Measurement of Pediatric Vocal Fold Motion Using
                Structured Light Laser Projection},
-  journal   = {PLOS ONE},
-  volume    = {11},
+  journal   = {Journal of Voice},
+  volume    = {27},
   number    = {4},
-  pages     = {e0154586},
-  year      = {2016},
-  doi       = {10.1371/journal.pone.0154586},
+  pages     = {463--472},
+  year      = {2013},
+  doi       = {10.1016/j.jvoice.2013.03.004},
 }
 
 @article{lohscheller2008laryngoscope,
@@ -300,4 +322,64 @@
   pages     = {23},
   year      = {2007},
   doi       = {10.1186/1475-925X-6-23},
+}
+
+% -- Additional cited works ------------------------------------------------------
+
+@article{montalbo2024,
+  author    = {Montalbo, Francis Jesmar P.},
+  title     = {{S3AR U-Net}: A separable squeezed similarity attention-gated
+               residual {U-Net} for glottis segmentation},
+  journal   = {Biomedical Signal Processing and Control},
+  volume    = {92},
+  pages     = {106047},
+  year      = {2024},
+  issn      = {1746-8094},
+  doi       = {10.1016/j.bspc.2024.106047},
+  url       = {https://www.sciencedirect.com/science/article/pii/S1746809424001058},
+}
+
+@article{patel2016nodules,
+  author    = {Patel, Rita R. and Donohue, Kevin D.
+               and Unnikrishnan, Harikrishnan and Kryscio, Richard J.},
+  title     = {Effects of Vocal Fold Nodules on Glottal Cycle Measurements
+               Derived from High-Speed Videoendoscopy in Children},
+  journal   = {PLOS ONE},
+  volume    = {11},
+  number    = {4},
+  pages     = {e0154586},
+  year      = {2016},
+  doi       = {10.1371/journal.pone.0154586},
+  note      = {Nodules vs.\ typically developing children; kinematic features.},
+}
+
+@article{hoffman2025comparative,
+  author    = {Hoffman, Joanna and Bara\'{n}ska, Magda and Niebudek-Bogusz, Ewa
+               and Pietruszewska, Wioletta},
+  title     = {Comparative Evaluation of High-Speed Videoendoscopy and
+               Laryngovideostroboscopy for Functional Laryngeal Assessment in
+               Clinical Practice},
+  journal   = {Journal of Clinical Medicine},
+  volume    = {14},
+  number    = {5},
+  pages     = {1723},
+  year      = {2025},
+  doi       = {10.3390/jcm14051723},
+  url       = {https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11899851/},
+  note      = {PMCID: PMC11899851.},
+}
+
+@article{schraut2025hoarseness,
+  author    = {Schraut, Tobias and Sch\"{u}tzenberger, Anne
+               and Arias-Vergara, Tom\'{a}s and Kunduk, Melda
+               and Echternach, Matthias and D\"{u}rr, Stephan
+               and Werz, Julia and D\"{o}llinger, Michael},
+  title     = {Machine learning based assessment of hoarseness severity: a
+               multi-sensor approach centered on high-speed videoendoscopy},
+  journal   = {Frontiers in Artificial Intelligence},
+  volume    = {8},
+  year      = {2025},
+  issn      = {2624-8212},
+  doi       = {10.3389/frai.2025.1601716},
+  url       = {https://www.frontiersin.org/journals/artificial-intelligence/articles/10.3389/frai.2025.1601716},
 }

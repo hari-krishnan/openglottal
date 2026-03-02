@@ -123,6 +123,8 @@ def main() -> None:
     p.add_argument("--canvas", type=int, default=256)
     p.add_argument("--max-images", type=int, default=0)
     p.add_argument("--output-json", default=None)
+    p.add_argument("--output-per-frame-dice", default=None,
+                   help="Save per-frame Dice (yolo-crop+unet, tau=0.02) as JSON list for fig_bagls_sweep waveforms.")
     args = p.parse_args()
 
     device = torch.device(args.device)
@@ -287,6 +289,22 @@ def main() -> None:
         with open(args.output_json, "w") as f:
             json.dump(serialisable, f, indent=2)
         print(f"Results saved → {args.output_json}")
+
+    if args.output_per_frame_dice and crop_model is not None:
+        thr = 0.02
+        per_frame_dice = []
+        for f in per_frame:
+            gt = f["gt"]
+            box_valid = f["box"] is not None and f["conf"] >= thr
+            if box_valid and f["mask_crop"] is not None:
+                mask_c = f["mask_crop"]
+            else:
+                mask_c = np.zeros_like(gt)
+            d, _ = frame_metrics(mask_c, gt)
+            per_frame_dice.append(d)
+        with open(args.output_per_frame_dice, "w") as f:
+            json.dump(per_frame_dice, f)
+        print(f"Per-frame dice (yolo-crop+unet, tau=0.02) saved → {args.output_per_frame_dice}")
 
 
 if __name__ == "__main__":

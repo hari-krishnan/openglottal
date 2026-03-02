@@ -26,10 +26,10 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 # Package root (parent of scripts/) — used as cwd when calling infer.py so openglottal is importable
-OPENGLOB_ROOT = SCRIPT_DIR.parents[1]
+OPENGLOB_ROOT = SCRIPT_DIR.parent
 
-DEFAULT_UNET = "outputs/openglottal_unet.pt"
-DEFAULT_YOLO = "outputs/yolo/girafe/weights/best.pt"
+DEFAULT_UNET = "weights/openglottal_unet.pt"
+DEFAULT_YOLO = "weights/openglottal_yolo.pt"
 
 
 def main() -> None:

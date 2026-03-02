@@ -49,7 +49,9 @@ def _kinematic_features(area_wave: list[float]) -> dict | None:
     oq = float(np.mean(area > mean_a * 0.1))
     fft = np.abs(np.fft.rfft(area - mean_a))
     freqs = np.fft.rfftfreq(len(area))
-    f0 = float(freqs[np.argmax(fft[1:]) + 1])
+    peak_idx = int(np.argmax(fft[1:]) + 1)
+    # First FFT bin (DC excluded) → no reliable f0
+    f0: float | None = None if peak_idx == 1 else float(freqs[peak_idx])
     ac = np.correlate(area - mean_a, area - mean_a, mode="full")
     ac = ac[len(ac) // 2 :]
     ac /= ac[0] + 1e-8

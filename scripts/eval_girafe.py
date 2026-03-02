@@ -60,6 +60,51 @@ GIRAFE_BASELINE = [
 TEST_PATIENTS = ["patient57A3", "patient61", "patient63", "patient64"]
 OUR_PIPELINES = ["unet-only", "yolo+otsu", "yolo+unet", "yolo-crop+unet", "yolo+motion"]
 
+
+def load_patient_to_pathology(raw_data_dir: Path) -> dict[str, str]:
+    """Load patient ID -> disorder status from GIRAFE Raw_Data patient*/metadata.json."""
+    out: dict[str, str] = {}
+    for pdir in sorted(raw_data_dir.iterdir()):
+        if not pdir.is_dir():
+            continue
+        meta_file = pdir / "metadata.json"
+        if not meta_file.exists():
+            continue
+        meta = json.load(open(meta_file))
+        out[pdir.name] = meta.get("disorder status", "Unknown")
+    return out
+
+
+def dice_by_pathology(
+    patient_dice: dict[str, dict[str, list[float]]],
+    patient_to_pathology: dict[str, str],
+) -> dict[str, dict[str, list[float]]]:
+    """Group per-patient dice lists by pathology label. Returns pathology -> pipe -> list of dices."""
+    by_patho: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    for patient, pipe_dice in patient_dice.items():
+        patho = patient_to_pathology.get(patient, "Unknown")
+        for pipe, dices in pipe_dice.items():
+            by_patho[patho][pipe].extend(dices)
+    return dict(by_patho)
+
+
+def print_per_pathology_dice(dice_by_pathology: dict[str, dict[str, list[float]]]) -> None:
+    """Print mean Dice per pathology per pipeline."""
+    label_map = {
+        "unet-only": "U-Net only", "yolo+otsu": "YOLO+OTSU", "yolo+unet": "YOLO+UNet",
+        "yolo-crop+unet": "YOLO-Crop+UNet", "yolo+motion": "YOLO+Motion",
+    }
+    pathos = sorted(dice_by_pathology.keys())
+    pipes = [p for p in OUR_PIPELINES]
+    print("\nDice by pathology (mean over frames):")
+    print("  " + "".join(f"{label_map.get(p, p):>12}" for p in pipes))
+    for patho in pathos:
+        row = []
+        for pipe in pipes:
+            dices = dice_by_pathology[patho].get(pipe, [])
+            row.append(f"{np.mean(dices):.3f}" if dices else "  n/a  ")
+        print(f"  {patho:<12}" + "".join(f"{r:>12}" for r in row))
+
 UNET_CROP_SIZE = 256  # resize YOLO crop to this before U-Net inference
 
 
@@ -184,11 +229,11 @@ def evaluate(
     unet_model: torch.nn.Module,
     device: torch.device,
     detector: TemporalDetector | None,
-) -> dict[str, dict]:
-    """Return pipeline → {dice, iou, n_detected, n_total} aggregated lists."""
-    # Structure: pipe → {"dice": [], "iou": [], "n_det": int, "n_total": int}
+) -> tuple[dict[str, dict], dict[str, dict[str, list[float]]]]:
+    """Return (agg, patient_dice). agg: pipeline → {dice, iou, n_detected, n_total}; patient_dice: patient → pipeline → list of dices."""
     agg: dict[str, dict] = {p: {"dice": [], "iou": [], "n_det": 0, "n_total": 0}
                              for p in OUR_PIPELINES}
+    patient_dice: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
 
     by_patient: dict[str, list[str]] = defaultdict(list)
     for fname in sorted(test_fnames):
@@ -221,6 +266,7 @@ def evaluate(
             d, i = frame_metrics(mask_unet_full, gt_mask)
             agg["unet-only"]["dice"].append(d)
             agg["unet-only"]["iou"].append(i)
+            patient_dice[patient]["unet-only"].append(d)
 
             # ── YOLO+OTSU ─────────────────────────────────────────────────────
             agg["yolo+otsu"]["n_total"] += 1
@@ -232,6 +278,7 @@ def evaluate(
             d, i = frame_metrics(mask_otsu, gt_mask)
             agg["yolo+otsu"]["dice"].append(d)
             agg["yolo+otsu"]["iou"].append(i)
+            patient_dice[patient]["yolo+otsu"].append(d)
 
             # ── YOLO+UNet ─────────────────────────────────────────────────────
             agg["yolo+unet"]["n_total"] += 1
@@ -246,6 +293,7 @@ def evaluate(
             d, i = frame_metrics(mask_yu, gt_mask)
             agg["yolo+unet"]["dice"].append(d)
             agg["yolo+unet"]["iou"].append(i)
+            patient_dice[patient]["yolo+unet"].append(d)
 
             # ── YOLO-Crop+UNet ────────────────────────────────────────────────
             agg["yolo-crop+unet"]["n_total"] += 1
@@ -257,6 +305,7 @@ def evaluate(
             d, i = frame_metrics(mask_crop, gt_mask)
             agg["yolo-crop+unet"]["dice"].append(d)
             agg["yolo-crop+unet"]["iou"].append(i)
+            patient_dice[patient]["yolo-crop+unet"].append(d)
 
         # ── YOLO+motion (temporal, per patient) ───────────────────────────────
         if detector is not None:
@@ -270,8 +319,9 @@ def evaluate(
             agg["yolo+motion"]["iou"].extend(motion_data.get("iou", []))
             agg["yolo+motion"]["n_det"] += n_det_motion
             agg["yolo+motion"]["n_total"] += len(fnames)
+            patient_dice[patient]["yolo+motion"].extend(motion_data.get("dice", []))
 
-    return agg
+    return agg, dict(patient_dice)
 
 
 # ── Pretty-print table ────────────────────────────────────────────────────────
@@ -336,6 +386,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--images-dir",    required=True)
     p.add_argument("--labels-dir",    required=True)
     p.add_argument("--training-json", required=True)
+    p.add_argument("--raw-data-dir",  default=None,
+                   help="GIRAFE/Raw_Data dir for per-pathology Dice (patient*/metadata.json).")
     p.add_argument("--unet-weights",  required=True)
     p.add_argument("--yolo-weights",  default=None,
                    help="Enables YOLO+OTSU, YOLO+UNet, YOLO+Motion pipelines.")
@@ -374,7 +426,7 @@ def main() -> None:
     test_fnames = splits["test"]
     print(f"Test frames   : {len(test_fnames)} across {len(TEST_PATIENTS)} patients\n")
 
-    agg = evaluate(
+    agg, patient_dice = evaluate(
         test_fnames=test_fnames,
         images_dir=Path(args.images_dir),
         labels_dir=Path(args.labels_dir),
@@ -385,14 +437,30 @@ def main() -> None:
 
     print_table(agg, has_yolo=detector is not None)
 
+    raw_dir = Path(args.raw_data_dir) if args.raw_data_dir else None
+    by_patho = None
+    if raw_dir is not None:
+        if raw_dir.is_dir():
+            patient_to_pathology = load_patient_to_pathology(raw_dir)
+            by_patho = dice_by_pathology(patient_dice, patient_to_pathology)
+            print_per_pathology_dice(by_patho)
+        else:
+            print(f"  --raw-data-dir not found: {raw_dir}", file=sys.stderr)
+
     if args.output_json:
         serialisable = {
             pipe: {k: (v if isinstance(v, (int, float)) else [float(x) for x in v])
                    for k, v in data.items()}
             for pipe, data in agg.items()
         }
+        out_data = {"aggregate": serialisable}
+        if by_patho is not None:
+            out_data["dice_by_pathology"] = {
+                patho: {pipe: dices for pipe, dices in pipe_dice.items()}
+                for patho, pipe_dice in by_patho.items()
+            }
         with open(args.output_json, "w") as f:
-            json.dump(serialisable, f, indent=2)
+            json.dump(out_data, f, indent=2)
         print(f"Raw results saved to {args.output_json}")
 
 

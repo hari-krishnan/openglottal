@@ -95,7 +95,7 @@ def extract_gaw_features(
         area_wave.append(area)
 
     feats = _kinematic_features(area_wave)
-    if feats is not None:
+    if feats is not None and feats.get("f0") is not None:
         feats["f0"] = feats["f0"] * capture_fps  # convert cycles/frame → Hz
     return feats
 
@@ -165,10 +165,11 @@ def main() -> None:
             continue
 
         record = {"patient": pdir.name, "disorder": status,
-                  **{k: float(v) for k, v in feats.items() if not k.startswith("_")}}
+                  **{k: (float(v) if v is not None else None) for k, v in feats.items() if not k.startswith("_")}}
         records.append(record)
+        f0_str = f"{feats['f0']:.1f}Hz" if feats.get("f0") is not None else "N/A"
         print(f"    area_mean={feats['area_mean']:.1f}  OQ={feats['open_quotient']:.3f}  "
-              f"f0={feats['f0']:.1f}Hz  periodicity={feats['periodicity']:.3f}")
+              f"f0={f0_str}  periodicity={feats['periodicity']:.3f}")
 
     # ── Save all features ─────────────────────────────────────────────────────
     out_json = output_dir / "gaw_features.json"
