@@ -19,7 +19,7 @@ Five pipelines are provided (four YOLO-gated and one U-Net-only):
 | **1 — VFT** | `vft` | YOLO detects the glottis → crop (size locked to first detection) → motion-based VocalFoldTracker |
 | **2 — Guided VFT** | `guided-vft` | YOLO bbox as ROI mask on the full frame → YOLOGuidedVFT (no cropping) |
 | **3 — YOLO+UNet** | `unet` | YOLO + full-frame U-Net: detection-gated (output only on frames where YOLO fires) |
-| **4 — YOLO-Crop+UNet** | (eval only) | YOLO crop → resize to 256×256 → crop-trained U-Net → project mask back; use `--crop-weights` in `eval_girafe.py` / `eval_bagls.py` |
+| **4 — YOLO-Crop+UNet** | `yolo-crop+unet` | YOLO crop → resize to 256×256 → crop-trained U-Net → project mask back. Weights are provided; use `--crop-weights` in `eval_girafe.py` / `eval_bagls.py`. Once tests validate, these weights will be committed to the repo. |
 | **5 — U-Net only** | `unet-only` | Full-frame U-Net only, no YOLO gate (only `--unet-weights` required) |
 
 All pipelines produce a per-frame **glottal area waveform** from which kinematic features (open quotient, fundamental frequency, periodicity, etc.) are extracted for downstream clinical analysis.
@@ -56,11 +56,12 @@ pip install -e ".[dev]"    # only if you need to reinstall
 
 | Weights file | Description |
 |--------------|-------------|
-| `weights/openglottal_unet.pt` | GIRAFE-trained U-Net (full-frame, no crop) |
-| `weights/openglottal_unet_cropped.pt` | GIRAFE-trained U-Net (crop mode; use with YOLO-Crop+UNet pipeline) |
-| `weights/openglottal_unet_bagl_50epochs.pt` | BAGLS-trained U-Net (full-frame, no crop) |
-| `weights/openglottal_yolo.pt` | GIRAFE-trained YOLO glottis detector |
-| `weights/yolo_bagl_2_best.pt` | BAGLS-trained YOLO glottis detector |
+| `weights/og_girafe_unet_full.pt` | GIRAFE-trained U-Net (full-frame, no crop) |
+| `weights/og_girafe_unet_crop.pt` | GIRAFE-trained U-Net (crop mode; use with YOLO-Crop+UNet pipeline) |
+| `weights/og_girafe_yolo.pt` | GIRAFE-trained YOLO glottis detector |
+| `weights/og_bagls_unet_full.pt` | BAGLS-trained U-Net (full-frame, no crop) |
+| `weights/og_bagls_unet_crop.pt` | BAGLS-trained U-Net (crop mode; use with YOLO-Crop+UNet on BAGLS in-distribution) |
+| `weights/og_bagls_yolo.pt` | BAGLS-trained YOLO glottis detector |
 
 To train your own, see [Training](#training); trained models are saved under `outputs/`.
 
@@ -76,10 +77,10 @@ from openglottal import TemporalDetector, UNet, extract_features_unet
 
 device = torch.device("mps")   # or "cuda" / "cpu"
 
-detector = TemporalDetector("weights/openglottal_yolo.pt")
+detector = TemporalDetector("weights/og_girafe_yolo.pt")
 
 model = UNet(1, 1, (32, 64, 128, 256)).to(device)
-model.load_state_dict(torch.load("weights/openglottal_unet.pt", map_location=device))
+model.load_state_dict(torch.load("weights/og_girafe_unet_full.pt", map_location=device))
 model.eval()
 
 features = extract_features_unet("video.avi", detector, model, device)
@@ -92,14 +93,14 @@ print(features)
 ```bash
 # U-Net pipeline (recommended)
 openglottal run video.avi \
-    --yolo-weights weights/openglottal_yolo.pt \
-    --unet-weights weights/openglottal_unet.pt \
+    --yolo-weights weights/og_girafe_yolo.pt \
+    --unet-weights weights/og_girafe_unet_full.pt \
     --pipeline unet \
     --output results/
 
 # Motion-based pipeline (no U-Net weights needed)
 openglottal run video.avi \
-    --yolo-weights weights/openglottal_yolo.pt \
+    --yolo-weights weights/og_girafe_yolo.pt \
     --pipeline guided-vft \
     --output results/
 ```
@@ -117,8 +118,8 @@ python scripts/eval_girafe.py \
     --images-dir       GIRAFE/Training/imagesTr \
     --labels-dir       GIRAFE/Training/labelsTr \
     --training-json    GIRAFE/Training/training.json \
-    --unet-weights     weights/openglottal_unet.pt \
-    --yolo-weights     weights/openglottal_yolo.pt \
+    --unet-weights     weights/og_girafe_unet_full.pt \
+    --yolo-weights     weights/og_girafe_yolo.pt \
     --device           mps
 ```
 
@@ -141,7 +142,7 @@ Results are printed alongside the published GIRAFE baselines for direct comparis
 - **Dice** — mean Dice coefficient across all test frames (higher is better)
 - **Dice≥0.5** — fraction of frames meeting the clinical pass threshold
 
-† YOLO-Crop+UNet uses the crop-trained U-Net: `weights/openglottal_unet_cropped.pt`. Full-frame and crop weight files are not interchangeable.
+† YOLO-Crop+UNet uses the crop-trained U-Net: `weights/og_girafe_unet_crop.pt`. Full-frame and crop weight files are not interchangeable.
 
 YOLO+Motion underperforms because GIRAFE test frames are the first 20 frames per patient, providing insufficient temporal context for the motion tracker to converge.
 
@@ -152,9 +153,9 @@ No BAGLS data used in training. Use GIRAFE-trained weights; images are letterbox
 ```bash
 python scripts/eval_bagls.py \
     --bagls-dir    BAGLS/test \
-    --unet-weights weights/openglottal_unet.pt \
-    --crop-weights weights/openglottal_unet_cropped.pt \
-    --yolo-weights weights/openglottal_yolo.pt \
+    --unet-weights weights/og_girafe_unet_full.pt \
+    --crop-weights weights/og_girafe_unet_crop.pt \
+    --yolo-weights weights/og_girafe_yolo.pt \
     --device       mps
 ```
 
@@ -170,18 +171,18 @@ YOLO-Crop+UNet is the strongest pipeline on the unseen BAGLS data (+2 pp Dice, +
 
 ### BAGLS in-distribution (3 500 test frames, BAGLS-trained weights)
 
-Use the provided BAGLS-trained U-Net and YOLO weights:
+Use the provided BAGLS-trained U-Net (full-frame and crop) and YOLO weights:
 
 ```bash
 python scripts/eval_bagls.py \
     --bagls-dir    BAGLS/test \
-    --unet-weights weights/openglottal_unet_bagl_50epochs.pt \
-    --crop-weights weights/openglottal_unet_cropped.pt \
-    --yolo-weights weights/yolo_bagl_2_best.pt \
+    --unet-weights weights/og_bagls_unet_full.pt \
+    --crop-weights weights/og_bagls_unet_crop.pt \
+    --yolo-weights weights/og_bagls_yolo.pt \
     --device       mps
 ```
 
-On the 3 500-frame BAGLS test set this configuration achieves:
+On the 3 500-frame BAGLS test set this configuration achieves:
 
 | Method             | Det.Recall | Dice  | IoU   | Dice≥0.5 |
 |--------------------|-----------:|------:|------:|---------:|
@@ -215,7 +216,7 @@ python scripts/train_yolo.py \
     --epochs 100
 ```
 
-YOLO saves best weights to `outputs/yolo/exp/weights/best.pt` (default run name `exp`). Use that path for `train_unet_crop.py` below, or copy to `outputs/openglottal_yolo.pt` for eval/CLI.
+YOLO saves best weights to `outputs/yolo/exp/weights/best.pt` (default run name `exp`). Use that path for `train_unet_crop.py` below, or copy to `weights/og_girafe_yolo.pt` for eval/CLI.
 
 ### 2. Train the U-Net (full-frame mode)
 
@@ -224,7 +225,7 @@ python scripts/train_unet.py \
     --images-dir  GIRAFE/Training/imagesTr \
     --labels-dir  GIRAFE/Training/labelsTr \
     --training-json GIRAFE/Training/training.json \
-    --output outputs/openglottal_unet.pt \
+    --output outputs/og_girafe_unet_full.pt \
     --epochs 50
 ```
 
@@ -238,7 +239,7 @@ python scripts/train_unet_crop.py \
     --labels-dir    GIRAFE/Training/labelsTr \
     --training-json GIRAFE/Training/training.json \
     --yolo-weights  outputs/yolo/exp/weights/best.pt \
-    --output        outputs/openglottal_unet_crop.pt \
+    --output        outputs/og_girafe_unet_crop.pt \
     --crop-size     256 \
     --epochs        50 \
     --device        cpu
@@ -332,8 +333,8 @@ Beyond frame-level segmentation, the pipeline produces a **Glottal Area Waveform
 ```bash
 python scripts/analyze_gaw.py \
     --raw-data-dir  GIRAFE/Raw_Data \
-    --yolo-weights  weights/openglottal_yolo.pt \
-    --unet-weights  weights/openglottal_unet.pt \
+    --yolo-weights  weights/og_girafe_yolo.pt \
+    --unet-weights  weights/og_girafe_unet_full.pt \
     --device        mps \
     --output-dir    results/gaw
 ```
