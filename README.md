@@ -6,6 +6,8 @@ Open-source toolkit for automated glottal area segmentation from high-speed vide
 
 **Author:** Harikrishnan Unnikrishnan (hari@orchard-robotics.com)
 
+**Paper:** [**arXiv:2603.02087**](https://arxiv.org/abs/2603.02087) — *Detection-Gated Glottal Segmentation with Zero-Shot Cross-Dataset Transfer and Clinical Feature Extraction*
+
 OpenGlottal combines a YOLOv8 glottis detector, a U-Net pixel-level segmenter, and a temporal vocal fold tracker into a single, reproducible inference and training pipeline — trained and evaluated on the [GIRAFE dataset](https://zenodo.org/records/13773163) ([dataset paper](https://doi.org/10.1016/j.dib.2025.111376)) and [BAGLS](https://zenodo.org/records/3762320) ([Scientific Data, 2020](https://doi.org/10.1038/s41597-020-0526-3)).
 
 ---
@@ -383,14 +385,17 @@ YOLO acts as a **detection gate**: when the endoscope moves away from the glotti
 
 If you use OpenGlottal in your research, please cite:
 
+**H. Unnikrishnan.** *Detection-Gated Glottal Segmentation with Zero-Shot Cross-Dataset Transfer and Clinical Feature Extraction.* arXiv:2603.02087, 2026.  
+[https://arxiv.org/abs/2603.02087](https://arxiv.org/abs/2603.02087)
+
 ```bibtex
 @article{unnikrishnan2026openglottal,
   title   = {Detection-gated glottal segmentation with zero-shot cross-dataset
              transfer and clinical feature extraction},
   author  = {Unnikrishnan, Harikrishnan},
-  journal = {Computers in Biology and Medicine},
+  journal = {arXiv preprint arXiv:2603.02087},
   year    = {2026},
-  note    = {Submitted to Computers in Biology and Medicine}
+  url     = {https://arxiv.org/abs/2603.02087}
 }
 ```
 
