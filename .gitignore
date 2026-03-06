@@ -40,6 +40,29 @@ Thumbs.db
 *.fls
 *.fdb_latexmk
 *.blg
+*.bbl
+*.spl
+*.synctex.gz
+*.synctex(busy)
+*.toc
+*.lof
+*.lot
+*.nav
+*.snm
+*.vrb
+*.bcf
+*.run.xml
+*.idx
+*.ind
+*.ilg
+*.glo
+*.gls
+*.glg
+*.acn
+*.acr
+*.alg
+*-blx.bib
+paper/%OUTDIR%/
 
 # Generated evaluation/output (reproducible via scripts)
 results/
