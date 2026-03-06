@@ -25,7 +25,7 @@ class TemporalDetector:
         model_path: str,
         conf: float = 0.25,
         max_shift_px: int = 30,
-        padding: int = 8,
+        padding: int = 0,
         max_hold_frames: int = 3,
     ) -> None:
         self.model = YOLO(str(model_path))

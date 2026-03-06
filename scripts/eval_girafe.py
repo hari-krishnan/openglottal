@@ -370,7 +370,7 @@ def print_table(agg: dict, has_yolo: bool) -> None:
 
     print(sep)
     print("  * U-Net only: no YOLO gate — always processes 100% of frames.")
-    print("  * YOLO-Crop+UNet: use --unet-weights unet_glottis_crop.pt (crop-trained).")
+    print("  * YOLO-Crop+UNet: use --unet-weights openglottal_unet_crop.pt (crop-trained).")
     print("    With full-frame weights the domain shift collapses this pipeline to ~0.")
     print("    Run scripts/train_unet_crop.py once to produce the crop-trained weights.")
     print()

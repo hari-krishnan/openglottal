@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from openglottal.models import UNet
 from openglottal.utils import unet_segment_frame, letterbox_with_info, unletterbox, resolve_weights_path
 
-CONF_THRESHOLDS = [0.001, 0.005, 0.01, 0.02, 0.03, 0.05, 0.10, 0.15, 0.20, 0.25]
+CONF_THRESHOLDS = [0.001, 0.005, 0.01, 0.02, 0.03, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75]
 PIPELINES = ["unet-only", "yolo+unet", "yolo-crop+unet"]
 RAW_CONF = 0.001  # run YOLO at minimum conf to capture all possible detections
 PADDING = 8

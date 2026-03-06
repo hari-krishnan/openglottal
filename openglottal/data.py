@@ -265,16 +265,22 @@ class GlottisDatasetHDF5(Dataset):
 
     Use :func:`build_glottis_hdf5` to create the file from raw PNGs. Optionally
     apply the same augmentations as :class:`openglottal.models.GlottisDataset`
-    at load time.
+    at load time, and/or z-normalization.
     """
 
     SIZE = 256
 
-    def __init__(self, h5_path: str | Path, augment: bool = False) -> None:
+    def __init__(
+        self,
+        h5_path: str | Path,
+        augment: bool = False,
+        z_norm: dict | None = None,
+    ) -> None:
         if h5py is None:
             raise ImportError("h5py is required. Install with: pip install h5py")
         self._h5_path = Path(h5_path)
         self.augment = augment
+        self.z_norm = z_norm  # dict with "mean" and "std" keys, or None
         with h5py.File(self._h5_path, "r") as f:
             self._n = f["images"].shape[0]
 
@@ -292,6 +298,12 @@ class GlottisDatasetHDF5(Dataset):
             msk = f["masks"][idx]
         img = torch.from_numpy(img.astype("float32") / 255.0).unsqueeze(0)  # (1,H,W)
         msk = torch.from_numpy(msk.astype("float32")).unsqueeze(0)
+
+        # Apply z-normalization if parameters provided
+        if self.z_norm is not None:
+            mean = self.z_norm["mean"]
+            std = self.z_norm["std"]
+            img = (img - mean) / std  # z-score normalization
 
         if self.augment:
             if random.random() > 0.5:

@@ -220,6 +220,7 @@ def unet_segment_frame(
     model: torch.nn.Module,
     device: torch.device,
     threshold: float = 0.5,
+    z_norm: dict | None = None,
 ) -> np.ndarray:
     """
     Run U-Net on a ``(H, W)`` uint8 grayscale frame.
@@ -227,12 +228,33 @@ def unet_segment_frame(
     The frame is resized to 256×256 for inference and the output mask is
     resized back to the original resolution.
 
+    Parameters
+    ----------
+    frame_gray : np.ndarray
+        Uint8 grayscale frame (H, W).
+    model : torch.nn.Module
+        U-Net model.
+    device : torch.device
+        Device to run inference on.
+    threshold : float
+        Sigmoid threshold for binary mask. Default 0.5.
+    z_norm : dict | None
+        Optional z-normalization parameters. If provided, should contain
+        'mean' and 'std' keys. Applies (img - mean) / std after [0,1]
+        normalization.
+
     Returns
     -------
     Binary uint8 mask (255 = glottis), same shape as ``frame_gray``.
     """
     inp = cv2.resize(frame_gray, (256, 256), interpolation=cv2.INTER_LINEAR)
-    t = torch.from_numpy(inp.astype("float32") / 255.0).unsqueeze(0).unsqueeze(0).to(device)
+    inp_norm = inp.astype("float32") / 255.0
+    # Apply z-score normalization if parameters provided
+    if z_norm is not None:
+        mean = z_norm["mean"]
+        std = z_norm["std"]
+        inp_norm = (inp_norm - mean) / std
+    t = torch.from_numpy(inp_norm).unsqueeze(0).unsqueeze(0).to(device)
     with torch.no_grad():
         prob = torch.sigmoid(model(t)).squeeze().cpu().numpy()
     H, W = frame_gray.shape

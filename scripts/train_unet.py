@@ -53,6 +53,8 @@ def parse_args() -> argparse.Namespace:
                    help="Use HDF5 cache for I/O. PATH is prefix: use PATH_train.h5 and PATH_val.h5.")
     p.add_argument("--build-hdf5", action="store_true",
                    help="Build HDF5 caches from current images/labels before training (requires --hdf5).")
+    p.add_argument("--znorm-json", default=None,
+                   help="Optional: JSON file with z-normalization parameters (mean, std). If provided, applies z-norm during training.")
     p.add_argument("--output", default="outputs/openglottal_unet.pt",
                    help="Path to save best checkpoint (outputs/ is gitignored).")
     p.add_argument("--output-suffix", default=None,
@@ -110,6 +112,13 @@ def main() -> None:
     train_fnames = splits["training"]
     val_fnames = splits["Val"]
 
+    # Load z-normalization parameters if provided
+    z_norm = None
+    if args.znorm_json:
+        with open(args.znorm_json) as f:
+            z_norm = json.load(f)
+        print(f"Loaded z-normalization: mean={z_norm['mean']:.6f}, std={z_norm['std']:.6f}")
+
     if args.build_hdf5 and not args.hdf5:
         raise SystemExit("--build-hdf5 requires --hdf5 PATH.")
 
@@ -128,8 +137,8 @@ def main() -> None:
                 h5_val, label_suffix=args.label_suffix,
             )
             print(f"  → {h5_train}, {h5_val}")
-        train_ds = GlottisDatasetHDF5(h5_train, augment=True)
-        val_ds = GlottisDatasetHDF5(h5_val, augment=False)
+        train_ds = GlottisDatasetHDF5(h5_train, augment=True, z_norm=z_norm)
+        val_ds = GlottisDatasetHDF5(h5_val, augment=False, z_norm=z_norm)
     else:
         train_ds = GlottisDataset(
             train_fnames, images_dir, labels_dir,
