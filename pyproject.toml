@@ -34,9 +34,11 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov", "ruff", "mypy", "kaggle>=1.6"]
 docs = ["mkdocs", "mkdocs-material"]
+gui = ["PyQt5>=5.15"]
 
 [project.scripts]
 openglottal = "openglottal.cli:main"
+openglottal-gui = "openglottal.qt_app.main:run_gui"
 
 [tool.setuptools.packages.find]
 where = ["."]
