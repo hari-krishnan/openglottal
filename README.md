@@ -6,7 +6,7 @@ Open-source toolkit for automated glottal area segmentation from high-speed vide
 
 **Author:** Harikrishnan Unnikrishnan (hari@orchard-robotics.com)
 
-**Paper:** [**arXiv:2603.02087**](https://arxiv.org/abs/2603.02087) — *Detection-Gated Glottal Segmentation with Zero-Shot Cross-Dataset Transfer and Clinical Feature Extraction*
+**Paper:** [**arXiv:2603.02087**](https://arxiv.org/abs/2603.02087) — *A Detection-Gated Pipeline for Robust Glottal Area Waveform Extraction and Clinical Pathology Assessment*
 
 OpenGlottal combines a YOLOv8 glottis detector, a U-Net pixel-level segmenter, and a temporal vocal fold tracker into a single, reproducible inference and training pipeline — trained and evaluated on the [GIRAFE dataset](https://zenodo.org/records/13773163) ([dataset paper](https://doi.org/10.1016/j.dib.2025.111376)) and [BAGLS](https://zenodo.org/records/3762320) ([Scientific Data, 2020](https://doi.org/10.1038/s41597-020-0526-3)).
 
@@ -49,6 +49,8 @@ pip install -e ".[dev]"    # only if you need to reinstall
 ```
 
 **Always use this venv** for training, evaluation, and CLI: activate it (`source .venv/bin/activate`) before running any `python`/`openglottal` commands, or use the `./run` script (e.g. `./run scripts/train_unet.py ...`) which uses `.venv/bin/python` automatically.
+
+For the **Qt GUI**, install the optional GUI extra: `pip install -e ".[gui]"` (adds PyQt5). See [Qt GUI](#qt-gui) below.
 
 *(A `pip install openglottal` option will work once the package is published to PyPI.)*
 
@@ -107,6 +109,17 @@ openglottal run video.avi \
     --output results/
 ```
 
+### Qt GUI
+
+Desktop app for viewing HSV videos with segmentation overlay, midline/axes, and kinematic metrics (open quotient, F0, periodicity, etc.):
+
+```bash
+pip install -e ".[gui]"
+openglottal-gui
+```
+
+Load a video, choose detector and U-Net weights from `weights/`, set frame range, and use Play/Pause or the timeline slider. Optional `metadata.json` next to the video supplies FPS and other keys. See [openglottal/qt_app/README.md](openglottal/qt_app/README.md) for details.
+
 ---
 
 ## Evaluation
@@ -148,7 +161,7 @@ Results are printed alongside the published GIRAFE baselines for direct comparis
 
 YOLO+Motion underperforms because GIRAFE test frames are the first 20 frames per patient, providing insufficient temporal context for the motion tracker to converge.
 
-### BAGLS zero-shot (3 500 test frames, GIRAFE-trained only)
+### BAGLS cross-dataset (3 500 test frames, GIRAFE-trained only)
 
 No BAGLS data used in training. Use GIRAFE-trained weights; images are letterboxed to 256×256.
 
@@ -192,7 +205,7 @@ On the 3 500-frame BAGLS test set this configuration achieves:
 | **YOLO+UNet**      | 0.87       | **0.85**  | **0.78**  | **94.6%** |
 | YOLO-Crop+UNet     | 0.87       | 0.74  | 0.64  | 87.1%    |
 
-So BAGLS-trained YOLO+UNet sets a strong in-distribution baseline (Dice 0.85), while the zero-shot GIRAFE-trained YOLO-Crop+UNet remains the best cross-dataset configuration.
+So BAGLS-trained YOLO+UNet sets a strong in-distribution baseline (Dice 0.85), while the GIRAFE-trained YOLO-Crop+UNet remains the best cross-dataset configuration.
 
 ---
 
@@ -264,6 +277,11 @@ openglottal/
 │   │   ├── detector.py     # TemporalDetector — YOLOv8 + temporal box locking
 │   │   ├── tracker.py      # VocalFoldTracker, YOLOGuidedVFT
 │   │   └── unet.py         # UNet, DoubleConv, GlottisDataset (with augmentation)
+│   ├── qt_app/             # Qt GUI — overlay, midline, waveform, openglottal-gui
+│   │   ├── main.py         # Main window, inference worker, playback
+│   │   ├── utils.py        # Overlay, axes/AC-PC drawing
+│   │   └── README.md       # GUI usage and features
+│   ├── metadata.py         # Video I/O, metadata.json, frame loading (used by GUI)
 │   ├── features.py         # extract_features_{detector,yolo_guided_vft,unet}
 │   ├── data.py             # mask_to_yolo, build_yolo_dataset
 │   ├── utils.py            # I/O helpers, dice/IoU metrics, unet_segment_frame
@@ -385,17 +403,19 @@ YOLO acts as a **detection gate**: when the endoscope moves away from the glotti
 
 If you use OpenGlottal in your research, please cite:
 
-**H. Unnikrishnan.** *Detection-Gated Glottal Segmentation with Zero-Shot Cross-Dataset Transfer and Clinical Feature Extraction.* arXiv:2603.02087, 2026.  
+**H. Unnikrishnan.** *A Detection-Gated Pipeline for Robust Glottal Area Waveform Extraction and Clinical Pathology Assessment.* arXiv:2603.02087 [cs.CV], 2 Mar 2026.
 [https://arxiv.org/abs/2603.02087](https://arxiv.org/abs/2603.02087)
 
 ```bibtex
-@article{unnikrishnan2026openglottal,
-  title   = {Detection-gated glottal segmentation with zero-shot cross-dataset
-             transfer and clinical feature extraction},
-  author  = {Unnikrishnan, Harikrishnan},
-  journal = {arXiv preprint arXiv:2603.02087},
-  year    = {2026},
-  url     = {https://arxiv.org/abs/2603.02087}
+@misc{unnikrishnan2026openglottal,
+  title         = {A Detection-Gated Pipeline for Robust Glottal Area
+                   Waveform Extraction and Clinical Pathology Assessment},
+  author        = {Unnikrishnan, Harikrishnan},
+  year          = {2026},
+  eprint        = {2603.02087},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CV},
+  url           = {https://arxiv.org/abs/2603.02087}
 }
 ```
 
