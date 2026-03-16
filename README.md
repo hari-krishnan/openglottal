@@ -2,7 +2,9 @@
 
 ![Patient 1 montage](paper/patient1_montage.png)
 
-Open-source toolkit for automated glottal area segmentation from high-speed videoendoscopy (HSV).
+Open-source toolkit for automated glottal area segmentation from high-speed videoendoscopy (HSV). Beyond per-frame masks, OpenGlottal extracts **glottal area waveforms (GAW)** and **left/right (L/R) displacement waveforms** along a configurable medial axis — enabling quantification of L/R asymmetry and kinematic features (open quotient, F0, periodicity) for clinical assessment.
+
+Building on previous research into nodule-induced vibratory irregularities (Patel, Unnikrishnan, & Donohue, 2016), OpenGlottal provides the first open-source GUI to quantify these L/R asymmetries in real time.
 
 **Author:** Harikrishnan Unnikrishnan (hari@orchard-robotics.com)
 
@@ -24,7 +26,7 @@ Five pipelines are provided (four YOLO-gated and one U-Net-only):
 | **4 — YOLO-Crop+UNet** | `yolo-crop+unet` | YOLO crop → resize to 256×256 → crop-trained U-Net → project mask back. Weights are provided; use `--crop-weights` in `eval_girafe.py` / `eval_bagls.py`. Once tests validate, these weights will be committed to the repo. |
 | **5 — U-Net only** | `unet-only` | Full-frame U-Net only, no YOLO gate (only `--unet-weights` required) |
 
-All pipelines produce a per-frame **glottal area waveform** from which kinematic features (open quotient, fundamental frequency, periodicity, etc.) are extracted for downstream clinical analysis.
+All pipelines produce a per-frame **glottal area waveform**. The Qt GUI and CLI further support **L/R displacement waveform** extraction: independent left and right vocal-fold excursions relative to a medial axis, with a configurable sampling position (e.g. anterior–middle junction) to isolate asymmetry. Kinematic features (open quotient, fundamental frequency, periodicity, etc.) are computed from area or L/R waveforms for downstream clinical analysis.
 
 ---
 
@@ -111,7 +113,12 @@ openglottal run video.avi \
 
 ### Qt GUI
 
-Desktop app for viewing HSV videos with segmentation overlay, midline/axes, and kinematic metrics (open quotient, F0, periodicity, etc.):
+Desktop app for viewing HSV videos with segmentation overlay, midline/AC–PC axes, **L/R displacement waveforms**, and kinematic metrics (open quotient, F0, periodicity, etc.). Quantifying L/R asymmetry in cases such as vocal fold nodules is a key use case: the dynamic medial probe and independent left/right waveforms isolate nodule-induced irregularities.
+
+**Pathology / L/R asymmetry** — For clinicians, the L/R displacement waveform is the main diagnostic view.
+
+![L/R asymmetry in vocal fold nodules](paper/qt_gui_lr_nodule.png)
+*Quantifying L/R asymmetry in a case of vocal fold nodules using the dynamic medial probe and independent displacement waveforms.*
 
 ```bash
 pip install -e ".[gui]"
@@ -332,7 +339,7 @@ python scripts/download_datasets.py --girafe --bagls
 
 ## Kinematic Features
 
-The following scalar features are extracted from each glottal area waveform:
+The following scalar features are extracted from each glottal area waveform (or from the L/R-derived opening signal when using displacement mode):
 
 | Feature | Description |
 |---------|-------------|
@@ -344,11 +351,15 @@ The following scalar features are extracted from each glottal area waveform:
 | `periodicity` | Peak autocorrelation at lags 1–50 |
 | `cv` | Coefficient of variation (std / mean) |
 
+**Spatial kinematics (L/R asymmetry)**  
+- **L/R displacement:** Independent tracking of left and right vocal-fold excursions (px) relative to the medial axis. Exported as separate time series (L, R, L−R, area) via the GUI “Save analysis” or the CLI `openglottal displacement` command.  
+- **Dynamic medial probe:** Configurable sampling position (0–1 along the anterior–posterior axis) so analysis can be run at a specific anatomical point (e.g. junction of anterior and middle thirds) to isolate nodule-induced irregularities.
+
 ---
 
-## Glottal Area Waveform Analysis
+## Glottal Area Waveform and L/R Displacement
 
-Beyond frame-level segmentation, the pipeline produces a **Glottal Area Waveform (GAW)** — the per-frame glottal area over time — from which kinematic features can be extracted and used for clinical classification.
+Beyond frame-level segmentation, the pipeline produces a **Glottal Area Waveform (GAW)** — the per-frame glottal area over time — and optionally **L/R displacement waveforms** (left and right excursions relative to the medial axis). Kinematic features can be extracted from either GAW or L/R-derived signals and used for clinical classification and asymmetry assessment.
 
 ```bash
 python scripts/analyze_gaw.py \
