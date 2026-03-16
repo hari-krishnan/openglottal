@@ -2,6 +2,8 @@
 
 Desktop GUI for viewing high-speed laryngoscopy videos with glottal segmentation overlay, midline/axes, and kinematic metrics.
 
+https://www.loom.com/share/cc0449512cfc43338001a193f30acd2e
+
 ## Run
 
 From the project root:
