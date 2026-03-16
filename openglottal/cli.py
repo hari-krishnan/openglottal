@@ -27,6 +27,48 @@ def main(argv: list[str] | None = None) -> None:
     run_p.add_argument("--output", "-o", default="results", help="Output directory.")
     run_p.add_argument("--device", default="cpu", help="Torch device (cpu / cuda / mps).")
 
+    # ── openglottal displacement ─────────────────────────────────────────────
+    disp_p = sub.add_parser(
+        "displacement",
+        help="Compute L/R displacement and kinematics from a video using U-Net (optionally YOLO-gated).",
+    )
+    disp_p.add_argument("video", help="Path to input .avi / .mp4 video.")
+    disp_p.add_argument("--yolo-weights", help="Path to YOLO .pt weights (optional gate).")
+    disp_p.add_argument("--unet-weights", required=True, help="Path to U-Net .pt weights.")
+    disp_p.add_argument("--start", type=int, help="Start frame index (default 0).")
+    disp_p.add_argument("--end", type=int, help="End frame index (inclusive; default = last frame).")
+    disp_p.add_argument(
+        "--mode",
+        choices=["lr", "differential", "area"],
+        default="lr",
+        help="Which waveform(s) to write: lr = L/R + diff + area; differential = L-R only; area = area only.",
+    )
+    disp_p.add_argument(
+        "--lr-position",
+        type=float,
+        default=0.5,
+        help="L/R position along medial line (0 = AC, 1 = PC, default 0.5).",
+    )
+    disp_p.add_argument(
+        "--beta",
+        type=float,
+        default=0.25,
+        help="Axes learning beta for medial line smoothing (default 0.25).",
+    )
+    disp_p.add_argument(
+        "--fps",
+        type=float,
+        default=4000.0,
+        help="Frame rate (Hz) used for f0 and periodicity features (default 4000).",
+    )
+    disp_p.add_argument(
+        "--output",
+        "-o",
+        default="results",
+        help="Output directory; CSV and JSON will be written here.",
+    )
+    disp_p.add_argument("--device", default="cpu", help="Torch device (cpu / cuda / mps).")
+
     # ── openglottal build-dataset ─────────────────────────────────────────────
     bd_p = sub.add_parser("build-dataset", help="Build YOLO dataset from GIRAFE masks.")
     bd_p.add_argument("--images-dir", required=True)
@@ -39,6 +81,8 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.command == "run":
         _cmd_run(parser, args)
+    elif args.command == "displacement":
+        _cmd_displacement(parser, args)
     elif args.command == "build-dataset":
         _cmd_build_dataset(args)
 
@@ -114,3 +158,98 @@ def _cmd_build_dataset(args: argparse.Namespace) -> None:
         force=args.force,
     )
     print(f"YAML config written to {yaml_path}")
+
+
+def _cmd_displacement(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    """CLI entrypoint for displacement analysis and waveform export."""
+    import os
+    import json
+    from pathlib import Path
+
+    import torch
+
+    from .models import TemporalDetector, UNet
+    from .metadata import get_video_frame_count
+    from .displacement import compute_displacement_series
+
+    device = torch.device(args.device)
+
+    if not args.unet_weights:
+        parser.error("--unet-weights is required for the displacement command.")
+
+    # Load models
+    detector = None
+    if args.yolo_weights:
+        detector = TemporalDetector(args.yolo_weights)
+
+    model = UNet(1, 1, (32, 64, 128, 256)).to(device)
+    model.load_state_dict(
+        torch.load(args.unet_weights, map_location=device, weights_only=True)
+    )
+    model.eval()
+
+    # Frame range
+    total_frames = get_video_frame_count(args.video)
+    start = args.start if args.start is not None else 0
+    end = args.end if args.end is not None else max(0, total_frames - 1)
+    if start < 0 or end < start or start >= total_frames:
+        parser.error(f"Invalid frame range: start={start}, end={end}, total_frames={total_frames}.")
+
+    rows, feats = compute_displacement_series(
+        args.video,
+        start,
+        end,
+        model,
+        device,
+        detector=detector,
+        beta=args.beta,
+        lr_position=args.lr_position,
+        fps=args.fps,
+    )
+    if not rows:
+        print("No valid displacement samples produced — check weights or input video.")
+        sys.exit(1)
+
+    os.makedirs(args.output, exist_ok=True)
+    base = Path(args.video).stem
+    csv_path = os.path.join(args.output, f"{base}_displacement_{args.mode}.csv")
+    json_path = os.path.join(args.output, f"{base}_displacement_features.json")
+
+    # Write CSV
+    import csv
+
+    lr_pos = float(args.lr_position)
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["# lr_position_0_1", lr_pos])
+        if feats:
+            writer.writerow(["# open_quotient", feats.get("open_quotient")])
+            writer.writerow(["# f0_hz", feats.get("f0_hz")])
+            writer.writerow(["# periodicity", feats.get("periodicity")])
+            writer.writerow(["# cv", feats.get("cv")])
+            writer.writerow(["# fps_used", feats.get("fps_used")])
+            writer.writerow(["# mean_opening", feats.get("mean_opening")])
+            writer.writerow(["# std_opening", feats.get("std_opening")])
+
+        if args.mode == "lr":
+            writer.writerow(
+                ["frame", "left_disp", "right_disp", "diff_L_minus_R", "area", "lr_position_0_1"]
+            )
+            for frame_idx, l, r, area in rows:
+                writer.writerow([frame_idx, l, r, l - r, area, lr_pos])
+        elif args.mode == "differential":
+            writer.writerow(["frame", "diff_L_minus_R", "lr_position_0_1"])
+            for frame_idx, l, r, _ in rows:
+                writer.writerow([frame_idx, l - r, lr_pos])
+        else:  # "area"
+            writer.writerow(["frame", "area", "lr_position_0_1"])
+            for frame_idx, _, _, area in rows:
+                writer.writerow([frame_idx, area, lr_pos])
+
+    # Write features JSON (LR-based kinematics)
+    feats_out = feats or {}
+    with open(json_path, "w") as f:
+        json.dump(feats_out, f, indent=2)
+
+    print(f"Displacement CSV saved to {csv_path}")
+    print(f"Kinematic features (LR-based) saved to {json_path}")

@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import sys
 from pathlib import Path
+import csv
 
 # Prefer PyQt5; optional PySide6
 try:
@@ -26,6 +27,7 @@ try:
         QFrame,
         QScrollArea,
         QPlainTextEdit,
+        QDialog,
     )
     from PyQt5.QtCore import Qt, QThread, pyqtSignal
     from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen, QColor
@@ -49,6 +51,7 @@ except ImportError:
             QFrame,
             QScrollArea,
             QPlainTextEdit,
+            QDialog,
         )
         from PySide6.QtCore import Qt, QThread, Signal
         from PySide6.QtGui import QImage, QPixmap, QPainter, QPen, QColor
@@ -70,22 +73,13 @@ from openglottal.metadata import (
     load_metadata_for_video,
 )
 
+from .analyzer import FrameRangeAnalyzer
 from .utils import (
     overlay_segment,
     draw_midline_on_bgr,
     draw_axes_on_bgr,
     draw_ac_pc_labels_on_bgr,
     draw_displacement_points_on_bgr,
-    fit_ellipse_to_points,
-    segments_to_ellipse_params,
-    ellipse_params_to_segments,
-    major_axis_segment_to_ac_pc_mid,
-    medial_line_direction_and_half_length,
-    midpoint_of_segment,
-    ac_pc_from_segment_along_medial_line,
-    ac_pc_from_points_along_medial_line,
-    _ellipse_axes_from_mask,
-    left_right_displacement_from_mask,
     displacement_kinematic_features,
     kinematic_features_from_opening,
 )
@@ -145,6 +139,10 @@ class SingleFrameInferenceWorker(QThread):
         """Reset translation drift state (useful when playback loops)."""
         self._request_queue.put(("reset-drift",))
 
+    def set_lr_position(self, lr_position: float) -> None:
+        """Update L/R position for subsequent frames without restarting the worker."""
+        self._request_queue.put(("set-lr", float(lr_position)))
+
     def stop(self) -> None:
         self._request_queue.put(None)
 
@@ -164,21 +162,10 @@ class SingleFrameInferenceWorker(QThread):
         )
         model.eval()
 
-        # Medial line and axes: all from 100-frame accumulated contour (initial and adaptive).
-        ADAPTIVE_BUFFER_SIZE = 100
-        axes_range_start: int | None = None
-        prev_adaptive_ellipse: tuple[float, float, float, float, float] | None = None  # (cx, cy, angle_rad, a, b) for displacement
-        medial_mid_prev: tuple[float, float] | None = None
-        medial_d_unit: tuple[float, float] | None = None
-        medial_half_length: float = 0.0
-        initial_min_seg: tuple | None = None
-        points_buffer: collections.deque = collections.deque(maxlen=ADAPTIVE_BUFFER_SIZE)  # last N frames for all estimates
-        prev_disp_left: float | None = None
-        prev_disp_right: float | None = None
-        prev_area: float | None = None
-        prev_minor_center: tuple[float, float] | None = None  # EMA-smoothed center of blue line (at L/R position)
-        prev_semi_minor: float = 0.0  # EMA-smoothed semi-minor length for blue line
-        beta = float(self.axes_blend_beta)  # EMA for midpoint smoothing (mid from AC/PC, not from single-frame mask)
+        analyzer = FrameRangeAnalyzer(
+            beta=float(self.axes_blend_beta),
+            lr_position=float(self.lr_position),
+        )
 
         while True:
             item = self._request_queue.get()
@@ -214,61 +201,17 @@ class SingleFrameInferenceWorker(QThread):
                             all_points.append(c.astype(np.float32))
                 if frame_w > 0 and frame_h > 0 and all_points:
                     combined = np.vstack(all_points)
-                    axes = fit_ellipse_to_points(combined, frame_w, frame_h)
-                    if axes:
-                        maj_seg, min_seg = axes[0], axes[1]
-                        # AC/PC from same accumulated contour (100 frames); mid = midpoint of segment AC–PC
-                        ac_pc = ac_pc_from_points_along_medial_line(combined, maj_seg)
-                        if ac_pc is not None:
-                            ac, pc = ac_pc
-                            mid = midpoint_of_segment(ac, pc)
-                            d_unit, half_length = medial_line_direction_and_half_length(ac, pc)
-                        else:
-                            ac, pc, mid = major_axis_segment_to_ac_pc_mid(maj_seg)
-                            d_unit, half_length = medial_line_direction_and_half_length(ac, pc)
-                        medial_mid_prev = mid
-                        medial_d_unit = d_unit
-                        medial_half_length = half_length
-                        # Estimate semi-minor from initial fit
-                        initial_min_seg = min_seg
-                        angle_maj = math.atan2(d_unit[1], d_unit[0])
-                        params = segments_to_ellipse_params(maj_seg, min_seg)
-                        b = params[4] if params is not None else half_length * 0.5
-                        prev_adaptive_ellipse = (mid[0], mid[1], angle_maj, half_length, b)
-                        points_buffer.clear()
-                        # Initial blue line: minor axis through configurable L/R position; seed smoothed state
-                        t_axes = max(0.0, min(1.0, self.lr_position))
-                        cx_axes = mid[0] + (2.0 * t_axes - 1.0) * half_length * d_unit[0]
-                        cy_axes = mid[1] + (2.0 * t_axes - 1.0) * half_length * d_unit[1]
-                        prev_minor_center = (cx_axes, cy_axes)
-                        prev_semi_minor = b
-                        _, min_seg_disp = ellipse_params_to_segments(
-                            cx_axes,
-                            cy_axes,
-                            angle_maj,
-                            half_length,
-                            b,
-                            frame_w,
-                            frame_h,
-                        )
-                        self.axes_ready.emit(((ac, pc), min_seg_disp))
-                        axes_range_start = start_frame
-                    else:
-                        self.axes_ready.emit((None, None))
+                    axes = analyzer.set_initial_from_batch(combined, frame_w, frame_h, start_frame)
+                    self.axes_ready.emit(axes if axes is not None else (None, None))
                 else:
                     self.axes_ready.emit((None, None))
                 continue
             if isinstance(item, tuple) and item[0] == "reset-drift":
-                axes_range_start = None
-                prev_adaptive_ellipse = None
-                medial_mid_prev = None
-                medial_d_unit = None
-                initial_min_seg = None
-                points_buffer.clear()
-                prev_minor_center = None
-                prev_semi_minor = 0.0
-                prev_disp_left = None
-                prev_disp_right = None
+                analyzer.reset()
+                continue
+            if isinstance(item, tuple) and item[0] == "set-lr":
+                _, lr = item
+                analyzer.set_lr_position(float(lr))
                 continue
             frame_index = item
             frames = load_frames_bgr_range(
@@ -289,141 +232,218 @@ class SingleFrameInferenceWorker(QThread):
                     outside[y1:y2, x1:x2] = False
                     mask[outside] = 0
             frame_h, frame_w = frm_bgr.shape[:2]
-            segmented_pixels = int(np.count_nonzero(mask > 0))
-            # Feed current frame contour into N-frame buffer (same contour used for medial line and blue line)
-            if axes_range_start is not None and segmented_pixels >= 30:
-                binary = (mask > 0).astype(np.uint8)
-                contours, _ = _cv2.findContours(binary, _cv2.RETR_EXTERNAL, _cv2.CHAIN_APPROX_SIMPLE)
-                if contours:
-                    c = max(contours, key=_cv2.contourArea)
-                    if _cv2.contourArea(c) >= 10:
-                        points_buffer.append(c.astype(np.float32))
-            # All estimates from 100-frame accumulated contour; mid = midpoint of segment AC–PC, then EMA-smoothed
-            if (
-                axes_range_start is not None
-                and frame_index >= axes_range_start + ADAPTIVE_BUFFER_SIZE - 1
-                and len(points_buffer) >= ADAPTIVE_BUFFER_SIZE
-            ):
-                accumulated = np.vstack(list(points_buffer))
-                axes_buf = fit_ellipse_to_points(accumulated, frame_w, frame_h)
-                if axes_buf is not None:
-                    maj_seg_buf, min_seg_buf = axes_buf[0], axes_buf[1]
-                    ac_pc = ac_pc_from_points_along_medial_line(accumulated, maj_seg_buf)
-                    if ac_pc is not None:
-                        ac, pc = ac_pc
-                        mid = midpoint_of_segment(ac, pc)  # midpoint of segment AC–PC (from accumulated contour)
-                        d_unit, half_length = medial_line_direction_and_half_length(ac, pc)
-                        medial_d_unit = d_unit
-                        medial_half_length = half_length
-                        # Estimate semi-minor length from fitted minor segment (for visualization)
-                        if min_seg_buf is not None:
-                            (mx1, my1), (mx2, my2) = min_seg_buf
-                            semi_min_est = 0.5 * math.hypot(mx2 - mx1, my2 - my1)
-                        else:
-                            semi_min_est = half_length * 0.5
-                        initial_min_seg = min_seg_buf
-                        # Smooth midpoint in time so displayed line doesn't jump; still derived from AC/PC
-                        if medial_mid_prev is not None:
-                            mid_smooth = (
-                                (1 - beta) * medial_mid_prev[0] + beta * mid[0],
-                                (1 - beta) * medial_mid_prev[1] + beta * mid[1],
-                            )
-                        else:
-                            mid_smooth = mid
-                        medial_mid_prev = mid_smooth
-                        dx, dy = d_unit[0], d_unit[1]
-                        L = half_length
-                        ac_prev = (mid_smooth[0] - L * dx, mid_smooth[1] - L * dy)
-                        pc_prev = (mid_smooth[0] + L * dx, mid_smooth[1] + L * dy)
-                        # Blue line: through L/R position, from buffer; smooth center and semi-minor so it adapts slowly
-                        t_axes = max(0.0, min(1.0, self.lr_position))
-                        cx_new = mid_smooth[0] + (2.0 * t_axes - 1.0) * L * dx
-                        cy_new = mid_smooth[1] + (2.0 * t_axes - 1.0) * L * dy
-                        if prev_minor_center is not None:
-                            cx_axes = (1 - beta) * prev_minor_center[0] + beta * cx_new
-                            cy_axes = (1 - beta) * prev_minor_center[1] + beta * cy_new
-                        else:
-                            cx_axes, cy_axes = cx_new, cy_new
-                        prev_minor_center = (cx_axes, cy_axes)
-                        if prev_semi_minor > 0:
-                            semi_min_smooth = (1 - beta) * prev_semi_minor + beta * semi_min_est
-                        else:
-                            semi_min_smooth = semi_min_est
-                        prev_semi_minor = semi_min_smooth
-                        angle_maj = math.atan2(dy, dx)
-                        _, min_seg_disp = ellipse_params_to_segments(
-                            cx_axes,
-                            cy_axes,
-                            angle_maj,
-                            L,
-                            semi_min_smooth,
-                            frame_w,
-                            frame_h,
-                        )
-                        self.axes_ready.emit(((ac_prev, pc_prev), min_seg_disp))
-                        angle_maj = math.atan2(dy, dx)
-                        if prev_adaptive_ellipse is not None:
-                            _, _, _, _, b_prev = prev_adaptive_ellipse
-                            prev_adaptive_ellipse = (mid_smooth[0], mid_smooth[1], angle_maj, L, b_prev)
-                        else:
-                            prev_adaptive_ellipse = (mid_smooth[0], mid_smooth[1], angle_maj, L, L * 0.5)
-                else:
-                    # Fit failed: re-emit previous axes so display does not flicker (state unchanged)
-                    if (
-                        medial_mid_prev is not None
-                        and medial_d_unit is not None
-                        and prev_minor_center is not None
-                        and prev_semi_minor > 0
-                    ):
-                        dx, dy = medial_d_unit[0], medial_d_unit[1]
-                        L = medial_half_length
-                        ac_prev = (medial_mid_prev[0] - L * dx, medial_mid_prev[1] - L * dy)
-                        pc_prev = (medial_mid_prev[0] + L * dx, medial_mid_prev[1] + L * dy)
-                        angle_maj = math.atan2(dy, dx)
-                        _, min_seg_disp = ellipse_params_to_segments(
-                            prev_minor_center[0],
-                            prev_minor_center[1],
-                            angle_maj,
-                            L,
-                            prev_semi_minor,
-                            frame_w,
-                            frame_h,
-                        )
-                        self.axes_ready.emit(((ac_prev, pc_prev), min_seg_disp))
+            left_disp, right_disp, area_curr, axes_for_display, left_pt, right_pt = analyzer.process_frame(
+                frame_index, frame_w, frame_h, mask
+            )
             overlay = overlay_segment(frm_bgr, mask)
-            # Only displacement is estimated per frame (from current mask). Medial line, AC, PC, mid, minor axis use buffered points and adapt slowly above.
-            # L/R center is taken at configurable position along medial line (0 = AC, 1 = PC, default 0.5).
-            disp_result = None
-            if medial_d_unit is not None and medial_half_length > 0 and medial_mid_prev is not None:
-                t = max(0.0, min(1.0, self.lr_position))
-                dx_u, dy_u = medial_d_unit
-                L = medial_half_length
-                # Point along AC->PC at fraction t
-                cx_disp = medial_mid_prev[0] + (2.0 * t - 1.0) * L * dx_u
-                cy_disp = medial_mid_prev[1] + (2.0 * t - 1.0) * L * dy_u
-                angle_disp = math.atan2(dy_u, dx_u)
-                disp_result = left_right_displacement_from_mask(mask, cx_disp, cy_disp, angle_disp)
-            elif segmented_pixels >= 30:
-                axes_for_disp = _ellipse_axes_from_mask(mask)
-                if axes_for_disp is not None:
-                    cx, cy, maj1, maj2, min1, min2 = axes_for_disp
-                    angle_maj = math.atan2(maj2[1] - maj1[1], maj2[0] - maj1[0])
-                    disp_result = left_right_displacement_from_mask(mask, cx, cy, angle_maj)
-            area_curr = float(segmented_pixels)
-            if disp_result is not None:
-                prev_disp_left, prev_disp_right, left_pt, right_pt = disp_result
+            if axes_for_display is not None:
+                self.axes_ready.emit(axes_for_display)
+            if left_pt is not None and right_pt is not None:
                 draw_displacement_points_on_bgr(overlay, left_pt, right_pt, thickness=1)
-                prev_area = area_curr
-                self.displacement_ready.emit(frame_index, prev_disp_left, prev_disp_right, area_curr)
-            elif prev_disp_left is not None and prev_disp_right is not None:
-                # No new intersections, reuse last valid displacement and area if available
+            if left_disp is not None and right_disp is not None:
+                self.displacement_ready.emit(frame_index, left_disp, right_disp, area_curr)
+            elif analyzer.prev_disp_left is not None and analyzer.prev_disp_right is not None:
+                area = float(analyzer.prev_area) if analyzer.prev_area is not None else area_curr
                 self.displacement_ready.emit(
                     frame_index,
-                    prev_disp_left,
-                    prev_disp_right,
-                    float(prev_area) if prev_area is not None else area_curr,
+                    analyzer.prev_disp_left,
+                    analyzer.prev_disp_right,
+                    area,
                 )
             self.frame_ready.emit(frame_index, overlay, mask.copy(), (0.0, 0.0))
+
+
+class SaveAnalysisWorker(QThread):
+    """Background worker to recompute displacement/area for a frame range and return waveforms + features."""
+
+    progressed = pyqtSignal(int, int)  # done, total
+    finished_ok = pyqtSignal(object, object)  # rows, features
+    failed = pyqtSignal(str)
+
+    def __init__(
+        self,
+        video_path: str,
+        detector_path: str | None,
+        unet_path: str,
+        device_str: str,
+        start: int,
+        end: int,
+        beta: float,
+        lr_position: float,
+        conf: float,
+        max_hold_frames: int,
+        fps: float,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self.video_path = video_path
+        self.detector_path = detector_path
+        self.unet_path = unet_path
+        self.device_str = device_str
+        self.start = start
+        self.end = end
+        self.beta = float(beta)
+        self.lr_position = float(lr_position)
+        self.conf = float(conf)
+        self.max_hold_frames = int(max_hold_frames)
+        self.fps = float(fps)
+
+    def run(self) -> None:
+        try:
+            device = torch.device(self.device_str)
+            detector = None
+            if self.detector_path:
+                detector = TemporalDetector(
+                    self.detector_path,
+                    conf=self.conf,
+                    max_hold_frames=self.max_hold_frames,
+                )
+            model = UNet(1, 1, (32, 64, 128, 256)).to(device)
+            model.load_state_dict(
+                torch.load(self.unet_path, map_location=device, weights_only=True)
+            )
+            model.eval()
+            ADAPTIVE_BUFFER_SIZE = 100
+            points_buffer: collections.deque = collections.deque(maxlen=ADAPTIVE_BUFFER_SIZE)
+            medial_mid_prev: tuple[float, float] | None = None
+            medial_d_unit: tuple[float, float] | None = None
+            medial_half_length: float = 0.0
+            prev_minor_center: tuple[float, float] | None = None
+            prev_semi_minor: float = 0.0
+            prev_disp_left: float | None = None
+            prev_disp_right: float | None = None
+            prev_area: float | None = None
+            rows: list[tuple[int, float, float, float]] = []
+            total = max(0, self.end - self.start + 1)
+            if total == 0:
+                self.finished_ok.emit([], None)
+                return
+            for offset, frame_index in enumerate(range(self.start, self.end + 1), start=1):
+                if self.isInterruptionRequested():
+                    return
+                frames = load_frames_bgr_range(self.video_path, frame_index, frame_index)
+                if not frames:
+                    continue
+                frm_bgr = frames[0]
+                gray = cv2.cvtColor(frm_bgr, cv2.COLOR_BGR2GRAY)
+                mask = unet_segment_frame(gray, model, device)
+                if detector is not None:
+                    box = detector.detect(frm_bgr)
+                    if box is None:
+                        mask[:] = 0
+                    else:
+                        x1, y1, x2, y2 = box
+                        outside = np.ones_like(mask, dtype=bool)
+                        outside[y1:y2, x1:x2] = False
+                        mask[outside] = 0
+                frame_h, frame_w = frm_bgr.shape[:2]
+                segmented_pixels = int(np.count_nonzero(mask > 0))
+                if segmented_pixels >= 30:
+                    binary = (mask > 0).astype(np.uint8)
+                    contours, _ = cv2.findContours(
+                        binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+                    )
+                    if contours:
+                        c = max(contours, key=cv2.contourArea)
+                        if cv2.contourArea(c) >= 10:
+                            points_buffer.append(c.astype(np.float32))
+                if len(points_buffer) >= ADAPTIVE_BUFFER_SIZE:
+                    accumulated = np.vstack(list(points_buffer))
+                    axes_buf = fit_ellipse_to_points(accumulated, frame_w, frame_h)
+                    if axes_buf is not None:
+                        maj_seg_buf, min_seg_buf = axes_buf[0], axes_buf[1]
+                        ac_pc = ac_pc_from_points_along_medial_line(accumulated, maj_seg_buf)
+                        if ac_pc is not None:
+                            ac, pc = ac_pc
+                            mid = midpoint_of_segment(ac, pc)
+                            d_unit, half_length = medial_line_direction_and_half_length(ac, pc)
+                            medial_d_unit = d_unit
+                            medial_half_length = half_length
+                            if min_seg_buf is not None:
+                                (mx1, my1), (mx2, my2) = min_seg_buf
+                                semi_min_est = 0.5 * math.hypot(mx2 - mx1, my2 - my1)
+                            else:
+                                semi_min_est = half_length * 0.5
+                            if medial_mid_prev is not None:
+                                mid_smooth = (
+                                    (1 - self.beta) * medial_mid_prev[0] + self.beta * mid[0],
+                                    (1 - self.beta) * medial_mid_prev[1] + self.beta * mid[1],
+                                )
+                            else:
+                                mid_smooth = mid
+                            medial_mid_prev = mid_smooth
+                            dx, dy = d_unit[0], d_unit[1]
+                            L = half_length
+                            t_axes = max(0.0, min(1.0, self.lr_position))
+                            cx_new = mid_smooth[0] + (2.0 * t_axes - 1.0) * L * dx
+                            cy_new = mid_smooth[1] + (2.0 * t_axes - 1.0) * L * dy
+                            if prev_minor_center is not None:
+                                cx_axes = (1 - self.beta) * prev_minor_center[0] + self.beta * cx_new
+                                cy_axes = (1 - self.beta) * prev_minor_center[1] + self.beta * cy_new
+                            else:
+                                cx_axes, cy_axes = cx_new, cy_new
+                            prev_minor_center = (cx_axes, cy_axes)
+                            if prev_semi_minor > 0:
+                                semi_min_smooth = (
+                                    (1 - self.beta) * prev_semi_minor + self.beta * semi_min_est
+                                )
+                            else:
+                                semi_min_smooth = semi_min_est
+                            prev_semi_minor = semi_min_smooth
+                            # angle_maj unused here; medial_d_unit already encodes direction
+                disp_result = None
+                area_curr = float(segmented_pixels)
+                if (
+                    medial_d_unit is not None
+                    and medial_half_length > 0
+                    and medial_mid_prev is not None
+                ):
+                    t = max(0.0, min(1.0, self.lr_position))
+                    dx_u, dy_u = medial_d_unit
+                    L = medial_half_length
+                    cx_disp = medial_mid_prev[0] + (2.0 * t - 1.0) * L * dx_u
+                    cy_disp = medial_mid_prev[1] + (2.0 * t - 1.0) * L * dy_u
+                    angle_disp = math.atan2(dy_u, dx_u)
+                    disp_result = left_right_displacement_from_mask(
+                        mask,
+                        cx_disp,
+                        cy_disp,
+                        angle_disp,
+                    )
+                elif segmented_pixels >= 30:
+                    axes_for_disp = _ellipse_axes_from_mask(mask)
+                    if axes_for_disp is not None:
+                        cx, cy, maj1, maj2, min1, min2 = axes_for_disp
+                        angle_maj = math.atan2(maj2[1] - maj1[1], maj2[0] - maj1[0])
+                        disp_result = left_right_displacement_from_mask(
+                            mask,
+                            cx,
+                            cy,
+                            angle_maj,
+                        )
+                if disp_result is not None:
+                    prev_disp_left, prev_disp_right, _, _ = disp_result
+                    prev_area = area_curr
+                    rows.append((frame_index, float(prev_disp_left), float(prev_disp_right), area_curr))
+                elif prev_disp_left is not None and prev_disp_right is not None:
+                    rows.append(
+                        (
+                            frame_index,
+                            float(prev_disp_left),
+                            float(prev_disp_right),
+                            float(prev_area) if prev_area is not None else area_curr,
+                        )
+                    )
+                self.progressed.emit(offset, total)
+            if not rows:
+                self.finished_ok.emit([], None)
+                return
+            sel_left = [r[1] for r in rows]
+            sel_right = [r[2] for r in rows]
+            feats = displacement_kinematic_features(sel_left, sel_right, self.fps)
+            self.finished_ok.emit(rows, feats)
+        except Exception as exc:  # pragma: no cover - defensive
+            self.failed.emit(str(exc))
 
 
 class DisplacementWaveformWidget(QWidget):
@@ -589,14 +609,19 @@ class MainWindow(QMainWindow):
         self.btn_midline_toggle.setChecked(True)
         self.btn_midline_toggle.clicked.connect(self._on_midline_toggle)
         play_layout.addWidget(self.btn_midline_toggle)
-        play_layout.addWidget(QLabel("L/R pos:"))
+        play_layout.addWidget(QLabel("L/R pos (0–1):"))
         self.slider_lr_pos = QSlider(Qt.Horizontal)
         self.slider_lr_pos.setMinimum(0)
         self.slider_lr_pos.setMaximum(100)
         self.slider_lr_pos.setValue(50)
         self.slider_lr_pos.setFixedWidth(80)
-        self.slider_lr_pos.valueChanged.connect(self._on_model_changed)
+        self.slider_lr_pos.valueChanged.connect(self._on_lr_pos_changed)
+        self.label_lr_pos = QLabel("0.50")
+        self.slider_lr_pos.valueChanged.connect(
+            lambda v: self.label_lr_pos.setText(f"{v/100:.2f}")
+        )
         play_layout.addWidget(self.slider_lr_pos)
+        play_layout.addWidget(self.label_lr_pos)
         play_layout.addStretch()
         disp_layout.addLayout(play_layout)
         # Displacement waveform + mode selector
@@ -606,11 +631,27 @@ class MainWindow(QMainWindow):
         self.combo_waveform_mode.addItems(["Left / Right", "L - R", "Area"])
         self.combo_waveform_mode.currentIndexChanged.connect(self._on_waveform_mode_changed)
         mode_row.addWidget(self.combo_waveform_mode)
+        self.btn_save_analysis = QPushButton("Save analysis…")
+        self.btn_save_analysis.setToolTip(
+            "Save kinematic parameters and L/R, L-R, and area waveforms for the current frame range."
+        )
+        self.btn_save_analysis.clicked.connect(self._on_save_analysis)
+        mode_row.addWidget(self.btn_save_analysis)
         mode_row.addStretch()
         disp_layout.addLayout(mode_row)
         self.disp_waveform = DisplacementWaveformWidget()
         self.disp_waveform.set_mode("lr")
         disp_layout.addWidget(self.disp_waveform)
+        # Progress bar used when saving analysis; hidden otherwise.
+        self.progress_save = QProgressBar()
+        self.progress_save.setMinimum(0)
+        self.progress_save.setMaximum(100)
+        self.progress_save.setValue(0)
+        self.progress_save.setTextVisible(True)
+        self.progress_save.setFormat("Saving %p%")
+        self.progress_save.setFixedHeight(14)
+        self.progress_save.setVisible(False)
+        disp_layout.addWidget(self.progress_save)
         status_group = QGroupBox("Status (Open Quotient, F0, Periodicity)")
         status_layout = QVBoxLayout()
         status_group.setLayout(status_layout)
@@ -883,6 +924,18 @@ class MainWindow(QMainWindow):
             self.status_label.setText("Paused — params changed. Press Play to resume; axes and 100-frame buffer will recompute.")
         self._update_play_button_state()
 
+    def _on_lr_pos_changed(self, value: int) -> None:
+        """While adjusting L/R slider: pause playback and repaint current frame with new line position."""
+        # Pause playback but keep worker alive so we can reuse the buffered state.
+        if self._playing:
+            self._playing = False
+            self.btn_play_pause.setText("Play")
+        lr = float(value) / 100.0
+        # Inform worker of new L/R position and ask it to recompute the current frame.
+        if self.worker and self.worker.isRunning():
+            self.worker.set_lr_position(lr)
+            self.worker.request_frame(self._current_frame_index())
+
     def _update_play_button_state(self) -> None:
         unet_path = self._get_unet_path()
         has_range = self.video_path and (self.spin_end.value() - self.spin_start.value() >= 0)
@@ -1087,6 +1140,222 @@ class MainWindow(QMainWindow):
         if not self.video_path or self.slider.value() >= self.slider.maximum():
             return
         self.slider.setValue(self.slider.value() + 1)
+
+    def _on_save_analysis(self) -> None:
+        """Save kinematic parameters and waveforms for current frame range to a CSV file.
+
+        Recomputes displacement and area for each frame from Start to End in order,
+        using the current model paths and parameter sliders. No images are rendered.
+        """
+        if not self.video_path:
+            return
+        unet_path = self._get_unet_path()
+        if not unet_path:
+            return
+        start = self.spin_start.value()
+        end = self.spin_end.value()
+        if end < start:
+            return
+        # Pause playback while analysis runs
+        if self._playing:
+            self._playing = False
+            self.btn_play_pause.setText("Play")
+        # Device and detector settings consistent with _start_worker
+        device_str = (
+            "mps"
+            if torch.backends.mps.is_available()
+            else "cuda"
+            if torch.cuda.is_available()
+            else "cpu"
+        )
+        device = torch.device(device_str)
+        conf = self.slider_tau.value() / 100.0
+        max_hold = self.slider_hold.value()
+        det_path = self._get_detector_path()
+        detector = None
+        if det_path:
+            detector = TemporalDetector(det_path, conf=conf, max_hold_frames=max_hold)
+        model = UNet(1, 1, (32, 64, 128, 256)).to(device)
+        model.load_state_dict(torch.load(unet_path, map_location=device, weights_only=True))
+        model.eval()
+        # Axes / medial line state mirroring worker logic
+        ADAPTIVE_BUFFER_SIZE = 100
+        points_buffer: collections.deque = collections.deque(maxlen=ADAPTIVE_BUFFER_SIZE)
+        medial_mid_prev: tuple[float, float] | None = None
+        medial_d_unit: tuple[float, float] | None = None
+        medial_half_length: float = 0.0
+        prev_minor_center: tuple[float, float] | None = None
+        prev_semi_minor: float = 0.0
+        prev_disp_left: float | None = None
+        prev_disp_right: float | None = None
+        prev_area: float | None = None
+        prev_adaptive_ellipse: tuple[float, float, float, float, float] | None = None
+        beta = float(self.slider_beta.value() / 100.0)
+        lr_position = float(self.slider_lr_pos.value() / 100.0)
+        # Prepare output container
+        rows: list[tuple[int, float, float, float]] = []
+        n_frames = end - start + 1
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save analysis",
+            "",
+            "CSV files (*.csv);;All files (*)",
+        )
+        if not path:
+            return
+        # Progress bar over frames (compute) + quick bump during write
+        self.progress_save.setVisible(True)
+        self.progress_save.setMinimum(0)
+        self.progress_save.setMaximum(n_frames)
+        self.progress_save.setValue(0)
+        try:
+            for offset, frame_index in enumerate(range(start, end + 1), start=1):
+                frames = load_frames_bgr_range(self.video_path, frame_index, frame_index)
+                if not frames:
+                    continue
+                frm_bgr = frames[0]
+                gray = cv2.cvtColor(frm_bgr, cv2.COLOR_BGR2GRAY)
+                mask = unet_segment_frame(gray, model, device)
+                if detector is not None:
+                    box = detector.detect(frm_bgr)
+                    if box is None:
+                        mask[:] = 0
+                    else:
+                        x1, y1, x2, y2 = box
+                        outside = np.ones_like(mask, dtype=bool)
+                        outside[y1:y2, x1:x2] = False
+                        mask[outside] = 0
+                frame_h, frame_w = frm_bgr.shape[:2]
+                segmented_pixels = int(np.count_nonzero(mask > 0))
+                # Update contour buffer for medial line / axes if there is a usable mask
+                if segmented_pixels >= 30:
+                    binary = (mask > 0).astype(np.uint8)
+                    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                    if contours:
+                        c = max(contours, key=cv2.contourArea)
+                        if cv2.contourArea(c) >= 10:
+                            points_buffer.append(c.astype(np.float32))
+                if len(points_buffer) >= ADAPTIVE_BUFFER_SIZE:
+                    accumulated = np.vstack(list(points_buffer))
+                    axes_buf = fit_ellipse_to_points(accumulated, frame_w, frame_h)
+                    if axes_buf is not None:
+                        maj_seg_buf, min_seg_buf = axes_buf[0], axes_buf[1]
+                        ac_pc = ac_pc_from_points_along_medial_line(accumulated, maj_seg_buf)
+                        if ac_pc is not None:
+                            ac, pc = ac_pc
+                            mid = midpoint_of_segment(ac, pc)
+                            d_unit, half_length = medial_line_direction_and_half_length(ac, pc)
+                            medial_d_unit = d_unit
+                            medial_half_length = half_length
+                            if min_seg_buf is not None:
+                                (mx1, my1), (mx2, my2) = min_seg_buf
+                                semi_min_est = 0.5 * math.hypot(mx2 - mx1, my2 - my1)
+                            else:
+                                semi_min_est = half_length * 0.5
+                            if medial_mid_prev is not None:
+                                mid_smooth = (
+                                    (1 - beta) * medial_mid_prev[0] + beta * mid[0],
+                                    (1 - beta) * medial_mid_prev[1] + beta * mid[1],
+                                )
+                            else:
+                                mid_smooth = mid
+                            medial_mid_prev = mid_smooth
+                            dx, dy = d_unit[0], d_unit[1]
+                            L = half_length
+                            # Smooth blue-line center and semi-minor
+                            t_axes = max(0.0, min(1.0, lr_position))
+                            cx_new = mid_smooth[0] + (2.0 * t_axes - 1.0) * L * dx
+                            cy_new = mid_smooth[1] + (2.0 * t_axes - 1.0) * L * dy
+                            if prev_minor_center is not None:
+                                cx_axes = (1 - beta) * prev_minor_center[0] + beta * cx_new
+                                cy_axes = (1 - beta) * prev_minor_center[1] + beta * cy_new
+                            else:
+                                cx_axes, cy_axes = cx_new, cy_new
+                            prev_minor_center = (cx_axes, cy_axes)
+                            if prev_semi_minor > 0:
+                                semi_min_smooth = (1 - beta) * prev_semi_minor + beta * semi_min_est
+                            else:
+                                semi_min_smooth = semi_min_est
+                            prev_semi_minor = semi_min_smooth
+                            angle_maj = math.atan2(dy, dx)
+                            prev_adaptive_ellipse = (
+                                mid_smooth[0],
+                                mid_smooth[1],
+                                angle_maj,
+                                L,
+                                semi_min_smooth,
+                            )
+                # Displacement at current frame, using buffered medial line when available
+                disp_result = None
+                area_curr = float(segmented_pixels)
+                if (
+                    medial_d_unit is not None
+                    and medial_half_length > 0
+                    and medial_mid_prev is not None
+                ):
+                    t = max(0.0, min(1.0, lr_position))
+                    dx_u, dy_u = medial_d_unit
+                    L = medial_half_length
+                    cx_disp = medial_mid_prev[0] + (2.0 * t - 1.0) * L * dx_u
+                    cy_disp = medial_mid_prev[1] + (2.0 * t - 1.0) * L * dy_u
+                    angle_disp = math.atan2(dy_u, dx_u)
+                    disp_result = left_right_displacement_from_mask(
+                        mask,
+                        cx_disp,
+                        cy_disp,
+                        angle_disp,
+                    )
+                elif segmented_pixels >= 30:
+                    axes_for_disp = _ellipse_axes_from_mask(mask)
+                    if axes_for_disp is not None:
+                        cx, cy, maj1, maj2, min1, min2 = axes_for_disp
+                        angle_maj = math.atan2(maj2[1] - maj1[1], maj2[0] - maj1[0])
+                        disp_result = left_right_displacement_from_mask(
+                            mask,
+                            cx,
+                            cy,
+                            angle_maj,
+                        )
+                if disp_result is not None:
+                    prev_disp_left, prev_disp_right, _, _ = disp_result
+                    prev_area = area_curr
+                    rows.append((frame_index, float(prev_disp_left), float(prev_disp_right), area_curr))
+                elif prev_disp_left is not None and prev_disp_right is not None:
+                    rows.append(
+                        (
+                            frame_index,
+                            float(prev_disp_left),
+                            float(prev_disp_right),
+                            float(prev_area) if prev_area is not None else area_curr,
+                        )
+                    )
+                self.progress_save.setValue(offset)
+            if not rows:
+                return
+            sel_left = [r[1] for r in rows]
+            sel_right = [r[2] for r in rows]
+            fps = float(self.spin_fps.value())
+            lr_position = float(self.slider_lr_pos.value() / 100.0)
+            feats = displacement_kinematic_features(sel_left, sel_right, fps)
+            # Quick write phase (fast relative to compute)
+            with open(path, "w", newline="") as f:
+                writer = csv.writer(f)
+                if feats:
+                    writer.writerow(["# open_quotient", feats.get("open_quotient")])
+                    writer.writerow(["# f0_hz", feats.get("f0_hz")])
+                    writer.writerow(["# periodicity", feats.get("periodicity")])
+                    writer.writerow(["# cv", feats.get("cv")])
+                    writer.writerow(["# fps_used", feats.get("fps_used")])
+                    writer.writerow(["# mean_opening", feats.get("mean_opening")])
+                    writer.writerow(["# std_opening", feats.get("std_opening")])
+                writer.writerow(["# lr_position_0_1", lr_position])
+                writer.writerow(
+                    ["frame", "left_disp", "right_disp", "diff_L_minus_R", "area", "lr_position_0_1"]
+                )
+                for f_idx, l, r, a in rows:
+                    writer.writerow([f_idx, l, r, l - r, a, lr_position])
+        finally:
+            self.progress_save.setVisible(False)
 
     def _on_crop_toggled(self) -> None:
         self._crop_display = self.check_crop.isChecked()
