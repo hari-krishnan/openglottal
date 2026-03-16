@@ -1,6 +1,9 @@
 # OpenGlottal
 
-![Patient 1 montage](paper/patient1_montage.png)
+| | |
+|:---:|:---:|
+| ![Patient 1 montage](paper/patient1_montage.png) | ![L/R asymmetry in vocal fold nodules](paper/qt_gui_lr_nodule.png) |
+| *Frame montage: segmentation across a glottal cycle.* | *Quantifying L/R asymmetry in a case of vocal fold nodules using the dynamic medial probe and independent displacement waveforms.* |
 
 Open-source toolkit for automated glottal area segmentation from high-speed videoendoscopy (HSV). Beyond per-frame masks, OpenGlottal extracts **glottal area waveforms (GAW)** and **left/right (L/R) displacement waveforms** along a configurable medial axis — enabling quantification of L/R asymmetry and kinematic features (open quotient, F0, periodicity) for clinical assessment.
 
@@ -115,10 +118,7 @@ openglottal run video.avi \
 
 Desktop app for viewing HSV videos with segmentation overlay, midline/AC–PC axes, **L/R displacement waveforms**, and kinematic metrics (open quotient, F0, periodicity, etc.). Quantifying L/R asymmetry in cases such as vocal fold nodules is a key use case: the dynamic medial probe and independent left/right waveforms isolate nodule-induced irregularities.
 
-**Pathology / L/R asymmetry** — For clinicians, the L/R displacement waveform is the main diagnostic view.
-
-![L/R asymmetry in vocal fold nodules](paper/qt_gui_lr_nodule.png)
-*Quantifying L/R asymmetry in a case of vocal fold nodules using the dynamic medial probe and independent displacement waveforms.*
+**Pathology / L/R asymmetry** — For clinicians, the L/R displacement waveform is the main diagnostic view (see screenshot at top).
 
 ```bash
 pip install -e ".[gui]"
