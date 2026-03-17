@@ -1,9 +1,10 @@
 # OpenGlottal
 
-| | |
-|:---:|:---:|
-| ![Patient 1 montage](paper/patient1_montage.png) | ![L/R asymmetry in vocal fold nodules](paper/qt_gui_lr_nodule.png) |
-| *Frame montage: segmentation across a glottal cycle.* | *Quantifying L/R asymmetry in a case of vocal fold nodules using the dynamic medial probe and independent displacement waveforms.* |
+![Patient 1 montage](paper/patient1_montage.png)  
+*Frame montage: segmentation across a glottal cycle.*
+
+![L/R asymmetry in vocal fold nodules](paper/qt_gui_lr_nodule.png)  
+*Quantifying L/R asymmetry in a case of vocal fold nodules using the dynamic medial probe and independent displacement waveforms.*
 
 Open-source toolkit for automated glottal area segmentation from high-speed videoendoscopy (HSV). Beyond per-frame masks, OpenGlottal extracts **glottal area waveforms (GAW)** and **left/right (L/R) displacement waveforms** along a configurable medial axis — enabling quantification of L/R asymmetry and kinematic features (open quotient, F0, periodicity) for clinical assessment.
 

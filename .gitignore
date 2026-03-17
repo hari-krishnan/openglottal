@@ -33,6 +33,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Local README preview (generated for browser preview)
+README_preview.html
+
 # LaTeX build artifacts (regenerate with latexmk)
 *.aux
 *.log
