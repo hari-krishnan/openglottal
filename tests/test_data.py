@@ -6,7 +6,6 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-import pytest
 
 
 def test_build_glottis_hdf5_and_load(tmp_path: Path) -> None:

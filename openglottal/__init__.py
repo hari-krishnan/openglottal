@@ -1,6 +1,6 @@
 """OpenGlottal: automated glottal area segmentation from high-speed videoendoscopy."""
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 from .models import TemporalDetector, VocalFoldTracker, YOLOGuidedVFT, UNet
 from .features import (

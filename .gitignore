@@ -75,9 +75,14 @@ eval_results*.json
 # Local dataset copies (large; not for git)
 GIRAFE/
 BAGLS/
-# YOLO training exports — keep dataset.yaml portable; images/labels are huge
+# YOLO training exports (default `train_yolo.py --output-dir` and variants)
+yolo_data/
 yolo_data*/images/
 yolo_data*/labels/
+
+# Word/media churn under paper_cross (abstract_icvpb2026.docx may stay tracked)
+paper_cross/media_docx/
+paper_cross/OpenGlottal_crossing_ICVPB.docx
 
 # Hugging Face / caches
 .hf_home/

@@ -14,8 +14,8 @@ Optional: `./run scripts/...` runs commands with the repo venv (see [README](REA
 
 ## Checks before a PR
 
-- **Tests:** `pytest` (from repo root with the venv active).
-- **Lint:** `ruff check .` and `ruff format --check .` (fix with `ruff format .`).
+- **Tests:** `pytest` (from repo root with the venv active). GitHub Actions runs the same on `main`.
+- **Lint (optional for now):** `ruff check .` — many scripts still have warnings; fixing them over time is welcome.
 
 ## Style
 

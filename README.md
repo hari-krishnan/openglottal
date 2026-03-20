@@ -454,6 +454,12 @@ Related prior work on glottal kinematics and high-speed imaging:
 
 ---
 
+## Research software notice
+
+OpenGlottal is **research and educational software**. It is **not** a medical device and is **not** intended for diagnosis, treatment, or clinical decision-making. Outputs may be inaccurate; always rely on qualified clinical judgment and validated workflows where patient care is involved.
+
+---
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, tests, and linting.
