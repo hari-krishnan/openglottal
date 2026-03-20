@@ -1,0 +1,7 @@
+# Dataset root = directory containing this file
+path: .
+train: images/train
+val:   images/val
+test:  images/test
+nc: 1
+names: ['glottis']

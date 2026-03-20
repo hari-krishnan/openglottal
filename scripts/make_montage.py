@@ -7,7 +7,7 @@ create the annotated video if needed.
 Usage
 -----
 python scripts/make_montage.py --input results/videos_yolo_unet/patient66_out.avi \\
-    --output openglottal/paper/patient66_montage.png --num-frames 12 --cols 4
+    --output openglottal/paper_cross/patient66_montage.png --num-frames 12 --cols 4
 """
 
 from __future__ import annotations

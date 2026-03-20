@@ -1,3 +1,0 @@
-# Ensure bibliography is built and citations resolve
-$pdf_mode = 1;
-$bibtex_use = 2;  # run bibtex when needed

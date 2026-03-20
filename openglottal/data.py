@@ -1,6 +1,6 @@
 """YOLO dataset construction from GIRAFE-format segmentation masks.
 
-Also: Kaggle dataset path resolution and HDF5-backed Glottis dataset for efficient I/O.
+Also: HDF5-backed Glottis dataset for efficient I/O.
 """
 
 from __future__ import annotations
@@ -13,7 +13,6 @@ import cv2
 import numpy as np
 from torch.utils.data import Dataset
 
-from openglottal.kaggle_paths import get_kaggle_bagls_path
 from openglottal.utils import letterbox_with_info, letterbox_apply_geometry
 
 try:
@@ -164,35 +163,6 @@ def build_yolo_dataset(
         f"names: ['glottis']\n"
     )
     return yaml_path
-
-
-# ── Kaggle dataset paths ─────────────────────────────────────────────────────
-
-def resolve_kaggle_data_paths(
-    dataset: str,
-    split: str,
-) -> tuple[Path, Path] | None:
-    """
-    Resolve (images_dir, labels_dir) when using a Kaggle dataset.
-
-    Parameters
-    ----------
-    dataset : str
-        Currently only ``"bagls"`` is supported.
-    split : str
-        ``"training"`` or ``"test"``.
-
-    Returns
-    -------
-    (img_dir, lbl_dir) if on Kaggle and the dataset is available, else None.
-    For BAGLS, images and masks are in the same directory (N.png, N_seg.png).
-    """
-    if dataset.lower() != "bagls":
-        return None
-    path = get_kaggle_bagls_path(split)
-    if path is None:
-        return None
-    return path, path
 
 
 # ── HDF5 cache for letterboxed images (efficient I/O) ────────────────────────

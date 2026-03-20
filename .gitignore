@@ -65,12 +65,36 @@ README_preview.html
 *.acr
 *.alg
 *-blx.bib
-paper/%OUTDIR%/
+# LaTeX build output (if building under paper_cross/)
+paper_cross/%OUTDIR%/
 
 # Generated evaluation/output (reproducible via scripts)
 results/
 eval_results*.json
 
-# Kaggle push staging (scripts/push_to_kaggle.py)
-kaggle_upload/
-kaggle_kernel_push/
+# Local dataset copies (large; not for git)
+GIRAFE/
+BAGLS/
+# YOLO training exports — keep dataset.yaml portable; images/labels are huge
+yolo_data*/images/
+yolo_data*/labels/
+
+# Hugging Face / caches
+.hf_home/
+
+# Tooling & scratch
+.claude/
+.pytest_cache/
+coverage.xml
+.coverage
+htmlcov/
+uncommitted_changes.diff
+*.patch
+
+# LaTeX / paper build outputs (keep sources in paper_cross/)
+paper_cross/*.zip
+paper_cross/main.pdf
+paper_cross/arxiv_submit/
+
+# Optional local metadata at repo root
+/dataset-metadata.json

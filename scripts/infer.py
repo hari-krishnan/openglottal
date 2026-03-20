@@ -34,7 +34,7 @@ python scripts/infer.py \\
     --pipeline unet \\
     --output-dir results/
 
-# Crop U-Net (e.g. model from Kaggle)
+# Crop U-Net (e.g. crop-trained checkpoint)
 python scripts/infer.py \\
     --input  GIRAFE/Raw_Data/ \\
     --yolo-weights outputs/openglottal_yolo.pt \\

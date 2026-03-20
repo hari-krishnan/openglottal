@@ -11,8 +11,8 @@ ZIP="paper_cross/openglottal_arxiv.zip"
 rm -rf "$OUT"
 mkdir -p "$OUT"
 
-# Source files (main.tex with graphicspath fixed for flat layout)
-sed 's|\\graphicspath{{\./}{\.\./paper/}{paper/}}|\\graphicspath{{./}}|' "$PAPER/main.tex" > "$OUT/main.tex"
+# Source files (figures are in paper_cross/; arXiv package is flat)
+cp "$PAPER/main.tex" "$OUT/main.tex"
 cp "$PAPER/refs.bib" "$OUT/"
 
 # Figures (only those referenced in main.tex)

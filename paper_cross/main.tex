@@ -11,8 +11,8 @@
 \usepackage{siunitx}
 \usepackage[capitalise,noabbrev]{cleveref}
 \usepackage{float}
-% Look in current dir, sibling paper/ dir, and repo-root paper/ dir
-\graphicspath{{./}{../paper/}{paper/}}
+% Figures live alongside this TeX file in paper_cross/
+\graphicspath{{./}}
 % High-resolution figures for publication (Figure 1, etc.)
 \pdfimageresolution=300
 
@@ -363,7 +363,7 @@ checkpoint.
   }{%
     \fbox{\parbox{0.85\linewidth}{\centering\vspace{1.5cm}%
       \textbf{Figure 1:} Overview of the three main inference pipelines.\\
-      Run \texttt{npx -y @mermaid-js/mermaid-cli -i fig1\_pipeline.mmd -o pipeline.png -w 1000 -s 2 -b white} in \texttt{paper/}.\vspace{1.5cm}}}
+      Run \texttt{npx -y @mermaid-js/mermaid-cli -i fig1\_pipeline.mmd -o pipeline.png -w 1000 -s 2 -b white} in \texttt{paper\_cross/}.\vspace{1.5cm}}}
   }%
 }
 \caption{Overview of the three main inference pipelines.

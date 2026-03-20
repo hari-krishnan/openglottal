@@ -1,6 +1,6 @@
 """Sweep temporal hold (1--20 frames, plus 0 and ∞) on GIRAFE and plot hold vs DSC.
 
-Generates paper/hold_ablation.pdf (line graph). Run from repo root:
+Generates paper_cross/hold_ablation.pdf (line graph). Run from repo root:
   ./run scripts/sweep_hold_girafe.py --images-dir GIRAFE/Training/imagesTr \\
     --labels-dir GIRAFE/Training/labelsTr --training-json GIRAFE/Training/training.json \\
     --unet-weights weights/openglottal_unet.pt --yolo-weights weights/openglottal_yolo.pt
@@ -34,7 +34,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--unet-weights", required=True)
     p.add_argument("--yolo-weights", required=True)
     p.add_argument("--device", default="mps")
-    p.add_argument("--output", default="paper/hold_ablation.pdf", help="Output figure path.")
+    p.add_argument("--output", default="paper_cross/hold_ablation.pdf", help="Output figure path.")
     return p.parse_args()
 
 
@@ -90,7 +90,7 @@ def main() -> None:
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
     except ImportError:
-        print("matplotlib not installed; saving raw data to paper/hold_ablation_data.json")
+        print("matplotlib not installed; saving raw data to paper_cross/hold_ablation_data.json")
         out_data = {
             "hold": hold_values,
             "hold_display": [h if h != 999999 else "inf" for h in hold_values],

@@ -32,7 +32,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "ruff", "mypy", "kaggle>=1.6"]
+dev = ["pytest", "pytest-cov", "ruff", "mypy"]
 docs = ["mkdocs", "mkdocs-material"]
 gui = ["PyQt5>=5.15"]
 

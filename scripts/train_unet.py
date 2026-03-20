@@ -9,11 +9,6 @@ GIRAFE (local):
     --training-json /path/to/GIRAFE/Training/training.json \\
     --output outputs/openglottal_unet.pt --epochs 50
 
-BAGLS on Kaggle (add dataset gomezp/benchmark-for-automatic-glottis-segmentation):
-  python scripts/train_unet.py --use-kaggle-bagls \\
-    --training-json /kaggle/input/openglottal/BAGLS/training.json \\
-    --output /kaggle/working/openglottal_unet.pt --epochs 50
-
 Efficient I/O with HDF5 cache (build once, then train):
   python scripts/train_unet.py --images-dir ... --labels-dir ... --training-json ... \\
     --hdf5 outputs/bagls --build-hdf5 --epochs 50
@@ -30,11 +25,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from openglottal.data import (
-    build_glottis_hdf5,
-    resolve_kaggle_data_paths,
-    GlottisDatasetHDF5,
-)
+from openglottal.data import build_glottis_hdf5, GlottisDatasetHDF5
 from openglottal.models import UNet, GlottisDataset
 from openglottal.utils import dice_loss
 
@@ -42,13 +33,11 @@ from openglottal.utils import dice_loss
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Train U-Net glottis segmenter.")
     p.add_argument("--images-dir", default=None,
-                   help="Images directory. Ignored if --use-kaggle-bagls.")
+                   help="Images directory (required unless using existing --hdf5 caches without --build-hdf5).")
     p.add_argument("--labels-dir", default=None,
-                   help="Labels directory. Ignored if --use-kaggle-bagls.")
+                   help="Labels directory (required unless using existing --hdf5 caches without --build-hdf5).")
     p.add_argument("--training-json", required=True,
                    help="Path to split JSON (keys: training, Val).")
-    p.add_argument("--use-kaggle-bagls", action="store_true",
-                   help="Use BAGLS from Kaggle input (when running on Kaggle). Sets images/labels dirs.")
     p.add_argument("--hdf5", metavar="PATH", default=None,
                    help="Use HDF5 cache for I/O. PATH is prefix: use PATH_train.h5 and PATH_val.h5.")
     p.add_argument("--build-hdf5", action="store_true",
@@ -89,25 +78,6 @@ def main() -> None:
         )
     print(f"Device: {device}", flush=True)
 
-    # Resolve images/labels dirs (Kaggle BAGLS or explicit paths)
-    if args.use_kaggle_bagls:
-        resolved = resolve_kaggle_data_paths("bagls", "training")
-        if resolved is None:
-            raise SystemExit(
-                " --use-kaggle-bagls set but not on Kaggle or BAGLS dataset not added. "
-                "Add dataset 'gomezp/benchmark-for-automatic-glottis-segmentation' to your notebook."
-            )
-        images_dir = resolved[0]
-        labels_dir = resolved[1]
-        if not args.label_suffix:
-            args.label_suffix = "_seg"
-        print(f"Using Kaggle BAGLS: {images_dir}")
-    else:
-        if not args.images_dir or not args.labels_dir:
-            raise SystemExit("Provide --images-dir and --labels-dir, or use --use-kaggle-bagls.")
-        images_dir = Path(args.images_dir)
-        labels_dir = Path(args.labels_dir)
-
     splits = json.load(open(args.training_json))
     train_fnames = splits["training"]
     val_fnames = splits["Val"]
@@ -126,6 +96,13 @@ def main() -> None:
         h5_prefix = Path(args.hdf5)
         h5_train = h5_prefix.parent / f"{h5_prefix.name}_train.h5"
         h5_val = h5_prefix.parent / f"{h5_prefix.name}_val.h5"
+        need_dirs = args.build_hdf5 or not h5_train.exists() or not h5_val.exists()
+        if need_dirs and (not args.images_dir or not args.labels_dir):
+            raise SystemExit(
+                "Provide --images-dir and --labels-dir when building HDF5 or when cache files are missing."
+            )
+        images_dir = Path(args.images_dir) if args.images_dir else Path(".")
+        labels_dir = Path(args.labels_dir) if args.labels_dir else Path(".")
         if args.build_hdf5 or not h5_train.exists() or not h5_val.exists():
             print("Building HDF5 caches ...", flush=True)
             build_glottis_hdf5(
@@ -140,6 +117,10 @@ def main() -> None:
         train_ds = GlottisDatasetHDF5(h5_train, augment=True, z_norm=z_norm)
         val_ds = GlottisDatasetHDF5(h5_val, augment=False, z_norm=z_norm)
     else:
+        if not args.images_dir or not args.labels_dir:
+            raise SystemExit("Provide --images-dir and --labels-dir (or use --hdf5 with existing caches).")
+        images_dir = Path(args.images_dir)
+        labels_dir = Path(args.labels_dir)
         train_ds = GlottisDataset(
             train_fnames, images_dir, labels_dir,
             augment=True, label_suffix=args.label_suffix,

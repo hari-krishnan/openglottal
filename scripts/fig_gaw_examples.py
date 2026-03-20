@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 REPO = Path(__file__).resolve().parents[1]
 GAW_PLOTS = REPO / "results" / "gaw_plots"
-OUT = REPO / "paper" / "gaw_examples.png"
+OUT = REPO / "paper_cross" / "gaw_examples.png"
 
 # One healthy, two disorders (Paresis, Paralysis)
 PANELS = [

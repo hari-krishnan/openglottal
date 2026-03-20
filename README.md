@@ -1,9 +1,9 @@
 # OpenGlottal
 
-![Patient 1 montage](https://raw.githubusercontent.com/hari-krishnan/openglottal/main/paper/patient1_montage.png)  
+![Patient 1 montage](https://raw.githubusercontent.com/hari-krishnan/openglottal/main/paper_cross/patient1_montage.png)  
 *Frame montage: segmentation across a glottal cycle.*
 
-![L/R asymmetry in vocal fold nodules](https://raw.githubusercontent.com/hari-krishnan/openglottal/main/paper/qt_gui_lr_nodule.png)  
+![L/R asymmetry in vocal fold nodules](https://raw.githubusercontent.com/hari-krishnan/openglottal/main/paper_cross/qt_gui_lr_nodule.png)  
 *Quantifying L/R asymmetry in a case of vocal fold nodules using the dynamic medial probe and independent displacement waveforms.*
 
 Open-source toolkit for automated glottal area segmentation from high-speed videoendoscopy (HSV). Beyond per-frame masks, OpenGlottal extracts **glottal area waveforms (GAW)** and **left/right (L/R) displacement waveforms** along a configurable medial axis — enabling quantification of L/R asymmetry and kinematic features (open quotient, F0, periodicity) for clinical assessment.
@@ -268,7 +268,7 @@ python scripts/train_unet_crop.py \
     --device        cpu
 ```
 
-**Device:** Use `--device cuda` on Kaggle or a GPU machine. On Mac, use `--device cpu` for training (MPS is not used for training); use `--device mps` for evaluation (`eval_bagls.py`, `eval_girafe.py`, `analyze_gaw.py`) for faster inference.
+**Device:** Use `--device cuda` on a Linux GPU machine or cloud instance. On Mac, use `--device cpu` for training (MPS is not used for training); use `--device mps` for evaluation (`eval_bagls.py`, `eval_girafe.py`, `analyze_gaw.py`) for faster inference.
 
 Both training modes use a **50/50 BCE + Dice loss** with cosine annealing, saving the best validation checkpoint automatically.
 
@@ -451,6 +451,16 @@ Related prior work on glottal kinematics and high-speed imaging:
   year    = {2016}
 }
 ```
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, tests, and linting.
+
+## Citing
+
+If you use this work in research, cite the [arXiv preprint](https://arxiv.org/abs/2603.02087). Repository metadata for citation managers is in [CITATION.cff](CITATION.cff).
 
 ---
 

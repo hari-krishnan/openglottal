@@ -18,7 +18,7 @@ import numpy as np
 from matplotlib.gridspec import GridSpec
 
 REPO = Path(__file__).resolve().parents[1]
-OUT = REPO / "paper" / "bagls_sweep.pdf"
+OUT = REPO / "paper_cross" / "bagls_sweep.pdf"
 
 # Same 3 patients as fig_gaw_examples (GAW figure)
 WAVEFORM_PANELS = [

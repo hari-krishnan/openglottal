@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+title: OpenGlottal
+message: "If you use this software, please cite it using the metadata below."
+type: software
+authors:
+  - family-names: Unnikrishnan
+    given-names: Harikrishnan
+    email: hari@orchard-robotics.com
+repository-code: "https://github.com/hari-krishnan/openglottal"
+license: MIT
+abstract: >-
+  Open-source toolkit for automated glottal area segmentation from high-speed videoendoscopy,
+  with GAW and left/right displacement waveforms for clinical assessment.
+preferred-citation:
+  type: article
+  title: "A Detection-Gated Pipeline for Robust Glottal Area Waveform Extraction and Clinical Pathology Assessment"
+  authors:
+    - family-names: Unnikrishnan
+      given-names: Harikrishnan
+  year: 2026
+  doi: "10.48550/arXiv.2603.02087"
